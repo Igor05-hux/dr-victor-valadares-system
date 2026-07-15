@@ -83,9 +83,9 @@ export async function getPatientById(
 ): Promise<Patient | null> {
   const patients = await getPatients();
 
-  return patients.find(
-    (patient) => patient.id === id,
-  ) ?? null;
+  return (
+    patients.find((patient) => patient.id === id) ?? null
+  );
 }
 
 export async function updatePatient(
@@ -115,6 +115,35 @@ export async function updatePatient(
           ...data,
         }
       : patient,
+  );
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(updatedPatients),
+  );
+}
+
+export async function deletePatient(
+  id: string,
+): Promise<void> {
+  if (!isBrowser()) {
+    throw new Error(
+      "A exclusão de paciente precisa ser executada no navegador.",
+    );
+  }
+
+  const patients = await getPatients();
+
+  const patientExists = patients.some(
+    (patient) => patient.id === id,
+  );
+
+  if (!patientExists) {
+    throw new Error("Paciente não encontrado.");
+  }
+
+  const updatedPatients = patients.filter(
+    (patient) => patient.id !== id,
   );
 
   localStorage.setItem(

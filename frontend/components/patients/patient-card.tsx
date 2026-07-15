@@ -1,13 +1,23 @@
 import Link from "next/link";
-import { CalendarDays, Mail, Pencil,Phone} from "lucide-react";
+import {
+  CalendarDays,
+  Mail,
+  Pencil,
+  Phone,
+} from "lucide-react";
 
+import { DeletePatientDialog } from "@/components/patients/delete-patient-dialog";
 import type { Patient } from "@/types/patient";
 
 interface PatientCardProps {
   patient: Patient;
+  onDeleted: (patientId: string) => void;
 }
 
-export function PatientCard({ patient }: PatientCardProps) {
+export function PatientCard({
+  patient,
+  onDeleted,
+}: PatientCardProps) {
   return (
     <article className="rounded-2xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-4">
@@ -47,7 +57,7 @@ export function PatientCard({ patient }: PatientCardProps) {
         </p>
       </div>
 
-      <div className="mt-5 flex justify-end border-t pt-4">
+      <div className="mt-5 flex flex-wrap justify-end gap-2 border-t pt-4">
         <Link
           href={`/pacientes/${patient.id}/editar`}
           className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition hover:bg-muted"
@@ -55,6 +65,12 @@ export function PatientCard({ patient }: PatientCardProps) {
           <Pencil size={16} />
           Editar
         </Link>
+
+        <DeletePatientDialog
+          patientId={patient.id}
+          patientName={patient.name}
+          onDeleted={onDeleted}
+        />
       </div>
     </article>
   );

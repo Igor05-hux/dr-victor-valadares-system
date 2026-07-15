@@ -27,6 +27,14 @@ export default function PatientsPage() {
     void loadPatients();
   }, []);
 
+  function handlePatientDeleted(patientId: string) {
+  setPatients((currentPatients) =>
+    currentPatients.filter(
+      (patient) => patient.id !== patientId,
+    ),
+  );
+}
+
   return (
     <DashboardLayout>
       <section className="space-y-6">
@@ -72,9 +80,10 @@ export default function PatientsPage() {
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {patients.map((patient) => (
               <PatientCard
-                key={patient.id}
-                patient={patient}
-              />
+              key={patient.id}
+              patient={patient}
+              onDeleted={handlePatientDeleted}
+               />
             ))}
           </div>
         )}
