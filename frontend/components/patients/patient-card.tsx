@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   CalendarDays,
+  FileText,
   Mail,
   Pencil,
   Phone,
@@ -58,6 +59,14 @@ export function PatientCard({
       </div>
 
       <div className="mt-5 flex flex-wrap justify-end gap-2 border-t pt-4">
+        <Link
+          href={`/prontuarios/${patient.id}`}
+          className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+        >
+          <FileText size={16} />
+          Prontuário
+        </Link>
+
         <Link
           href={`/pacientes/${patient.id}/editar`}
           className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition hover:bg-muted"
