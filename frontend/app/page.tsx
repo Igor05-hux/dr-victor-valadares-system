@@ -4,6 +4,8 @@ import {
   Clock3,
   UserRoundPlus,
 } from "lucide-react";
+
+import { MetricCard } from "@/components/dashboard/metric-card";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 
 const metrics = [
@@ -64,36 +66,15 @@ export default function Home() {
   return (
     <DashboardLayout>
       <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => {
-          const Icon = metric.icon;
-
-          return (
-            <article
-              key={metric.title}
-              className="rounded-2xl border bg-card p-5 shadow-sm"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {metric.title}
-                  </p>
-
-                  <h3 className="mt-2 text-3xl font-bold">
-                    {metric.value}
-                  </h3>
-                </div>
-
-                <div className="rounded-xl bg-blue-50 p-3 text-blue-600 dark:bg-blue-950">
-                  <Icon size={22} />
-                </div>
-              </div>
-
-              <p className="mt-4 text-xs text-muted-foreground">
-                {metric.description}
-              </p>
-            </article>
-          );
-        })}
+        {metrics.map((metric) => (
+          <MetricCard
+            key={metric.title}
+            title={metric.title}
+            value={metric.value}
+            description={metric.description}
+            icon={metric.icon}
+          />
+        ))}
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
