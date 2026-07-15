@@ -77,3 +77,48 @@ export async function createPatient(
 
   return newPatient;
 }
+
+export async function getPatientById(
+  id: string,
+): Promise<Patient | null> {
+  const patients = await getPatients();
+
+  return patients.find(
+    (patient) => patient.id === id,
+  ) ?? null;
+}
+
+export async function updatePatient(
+  id: string,
+  data: CreatePatientInput,
+): Promise<void> {
+  if (!isBrowser()) {
+    throw new Error(
+      "A edição de paciente precisa ser executada no navegador.",
+    );
+  }
+
+  const patients = await getPatients();
+
+  const patientExists = patients.some(
+    (patient) => patient.id === id,
+  );
+
+  if (!patientExists) {
+    throw new Error("Paciente não encontrado.");
+  }
+
+  const updatedPatients = patients.map((patient) =>
+    patient.id === id
+      ? {
+          ...patient,
+          ...data,
+        }
+      : patient,
+  );
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(updatedPatients),
+  );
+}

@@ -1,4 +1,5 @@
-import { CalendarDays, Mail, Phone } from "lucide-react";
+import Link from "next/link";
+import { CalendarDays, Mail, Pencil,Phone} from "lucide-react";
 
 import type { Patient } from "@/types/patient";
 
@@ -44,6 +45,16 @@ export function PatientCard({ patient }: PatientCardProps) {
           <CalendarDays size={16} />
           Última consulta: {patient.lastAppointment}
         </p>
+      </div>
+
+      <div className="mt-5 flex justify-end border-t pt-4">
+        <Link
+          href={`/pacientes/${patient.id}/editar`}
+          className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+        >
+          <Pencil size={16} />
+          Editar
+        </Link>
       </div>
     </article>
   );
