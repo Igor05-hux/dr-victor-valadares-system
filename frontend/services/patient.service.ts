@@ -1,6 +1,11 @@
-import type { Patient } from "@/types/patient";
+import type {
+  CreatePatientInput,
+  Patient,
+} from "@/types/patient";
 
-const patientsMock: Patient[] = [
+const STORAGE_KEY = "victor-valadares-patients";
+
+const defaultPatients: Patient[] = [
   {
     id: "patient-1",
     name: "Mariana Oliveira",
@@ -20,27 +25,55 @@ const patientsMock: Patient[] = [
     lastAppointment: "2026-07-14",
     status: "Ativo",
   },
-  {
-    id: "patient-3",
-    name: "Amanda Souza",
-    email: "amanda.souza@email.com",
-    phone: "(31) 97777-4562",
-    birthDate: "1999-02-27",
-    lastAppointment: "2026-06-28",
-    nextAppointment: "2026-07-25",
-    status: "Ativo",
-  },
-  {
-    id: "patient-4",
-    name: "Rafael Martins",
-    email: "rafael.martins@email.com",
-    phone: "(31) 96666-8010",
-    birthDate: "1978-11-12",
-    lastAppointment: "2026-05-30",
-    status: "Inativo",
-  },
 ];
 
+function isBrowser() {
+  return typeof window !== "undefined";
+}
+
 export async function getPatients(): Promise<Patient[]> {
-  return Promise.resolve(patientsMock);
+  if (!isBrowser()) {
+    return defaultPatients;
+  }
+
+  const storedPatients = localStorage.getItem(STORAGE_KEY);
+
+  if (!storedPatients) {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(defaultPatients),
+    );
+
+    return defaultPatients;
+  }
+
+  return JSON.parse(storedPatients) as Patient[];
+}
+
+export async function createPatient(
+  input: CreatePatientInput,
+): Promise<Patient> {
+  if (!isBrowser()) {
+    throw new Error(
+      "O cadastro de paciente precisa ser executado no navegador.",
+    );
+  }
+
+  const patients = await getPatients();
+
+  const newPatient: Patient = {
+    id: crypto.randomUUID(),
+    ...input,
+    lastAppointment: "Nenhuma",
+    status: "Ativo",
+  };
+
+  const updatedPatients = [...patients, newPatient];
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(updatedPatients),
+  );
+
+  return newPatient;
 }

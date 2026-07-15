@@ -1,12 +1,31 @@
+"use client";
+
+import Link from "next/link";
 import { Plus, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { PatientCard } from "@/components/patients/patient-card";
 import { PatientFilters } from "@/components/patients/patient-filters";
 import { getPatients } from "@/services/patient.service";
+import type { Patient } from "@/types/patient";
 
-export default async function PatientsPage() {
-  const patients = await getPatients();
+export default function PatientsPage() {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadPatients() {
+      try {
+        const data = await getPatients();
+        setPatients(data);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void loadPatients();
+  }, []);
 
   return (
     <DashboardLayout>
@@ -19,13 +38,13 @@ export default async function PatientsPage() {
             </p>
           </div>
 
-          <button
-            type="button"
+          <Link
+            href="/pacientes/novo"
             className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
             <Plus size={18} />
             Novo paciente
-          </button>
+          </Link>
         </div>
 
         <PatientFilters />
@@ -39,16 +58,26 @@ export default async function PatientsPage() {
             <p className="text-sm text-muted-foreground">
               Pacientes cadastrados
             </p>
-
-            <strong className="text-2xl">{patients.length}</strong>
+            <strong className="text-2xl">
+              {isLoading ? "..." : patients.length}
+            </strong>
           </div>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {patients.map((patient) => (
-            <PatientCard key={patient.id} patient={patient} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="rounded-2xl border bg-card p-8 text-center text-sm text-muted-foreground">
+            Carregando pacientes...
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {patients.map((patient) => (
+              <PatientCard
+                key={patient.id}
+                patient={patient}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </DashboardLayout>
   );
