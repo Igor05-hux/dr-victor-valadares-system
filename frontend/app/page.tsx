@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { RecentAppointments } from "@/components/dashboard/recent-appointments";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 
 const metrics = [
@@ -40,25 +41,25 @@ const appointments = [
     time: "08:30",
     patient: "Mariana Oliveira",
     procedure: "Avaliação",
-    status: "Confirmada",
+    status: "Confirmada" as const,
   },
   {
     time: "10:00",
     patient: "Carlos Henrique",
     procedure: "Limpeza",
-    status: "Confirmada",
+    status: "Confirmada" as const,
   },
   {
     time: "13:30",
     patient: "Amanda Souza",
     procedure: "Restauração",
-    status: "Pendente",
+    status: "Pendente" as const,
   },
   {
     time: "15:00",
     patient: "Rafael Martins",
     procedure: "Retorno",
-    status: "Confirmada",
+    status: "Confirmada" as const,
   },
 ];
 
@@ -78,62 +79,11 @@ export default function Home() {
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <article className="rounded-2xl border bg-card p-6 shadow-sm">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold">Agenda de hoje</h3>
-              <p className="text-sm text-muted-foreground">
-                Próximos atendimentos do consultório
-              </p>
-            </div>
-
-            <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-              Nova consulta
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px] text-left">
-              <thead>
-                <tr className="border-b text-xs uppercase text-muted-foreground">
-                  <th className="pb-3 font-semibold">Horário</th>
-                  <th className="pb-3 font-semibold">Paciente</th>
-                  <th className="pb-3 font-semibold">Procedimento</th>
-                  <th className="pb-3 font-semibold">Status</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {appointments.map((appointment) => (
-                  <tr
-                    key={`${appointment.time}-${appointment.patient}`}
-                    className="border-b last:border-0"
-                  >
-                    <td className="py-4 font-semibold">{appointment.time}</td>
-                    <td className="py-4">{appointment.patient}</td>
-                    <td className="py-4 text-muted-foreground">
-                      {appointment.procedure}
-                    </td>
-                    <td className="py-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          appointment.status === "Confirmada"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
-                      >
-                        {appointment.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
+        <RecentAppointments appointments={appointments} />
 
         <article className="rounded-2xl border bg-card p-6 shadow-sm">
           <h3 className="text-lg font-bold">Resumo mensal</h3>
+
           <p className="text-sm text-muted-foreground">
             Indicadores do consultório
           </p>
@@ -144,6 +94,7 @@ export default function Home() {
                 <span>Consultas realizadas</span>
                 <strong>82%</strong>
               </div>
+
               <div className="h-2 rounded-full bg-muted">
                 <div className="h-2 w-[82%] rounded-full bg-blue-600" />
               </div>
@@ -154,6 +105,7 @@ export default function Home() {
                 <span>Consultas confirmadas</span>
                 <strong>74%</strong>
               </div>
+
               <div className="h-2 rounded-full bg-muted">
                 <div className="h-2 w-[74%] rounded-full bg-green-600" />
               </div>
@@ -164,6 +116,7 @@ export default function Home() {
                 <span>Pagamentos recebidos</span>
                 <strong>68%</strong>
               </div>
+
               <div className="h-2 rounded-full bg-muted">
                 <div className="h-2 w-[68%] rounded-full bg-violet-600" />
               </div>
