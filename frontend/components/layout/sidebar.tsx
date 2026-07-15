@@ -84,7 +84,7 @@ export function Sidebar() {
               href={item.href}
               className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
                 active
-                  ? "bg-blue-600 text-white"
+                  ? "bg-blue-600 text-whitepacientes"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >

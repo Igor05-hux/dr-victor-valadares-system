@@ -2,7 +2,7 @@ import type { Appointment } from "@/types/appointment";
 
 const appointmentsMock: Appointment[] = [
   {
-    id: "1",
+    id: "appointment-1",
     time: "08:30",
     patient: "Mariana Oliveira",
     procedure: "Avaliação",
@@ -10,7 +10,7 @@ const appointmentsMock: Appointment[] = [
     status: "Confirmada",
   },
   {
-    id: "2",
+    id: "appointment-2",
     time: "10:00",
     patient: "Carlos Henrique",
     procedure: "Limpeza",
@@ -18,7 +18,7 @@ const appointmentsMock: Appointment[] = [
     status: "Confirmada",
   },
   {
-    id: "3",
+    id: "appointment-3",
     time: "13:30",
     patient: "Amanda Souza",
     procedure: "Restauração",
@@ -26,7 +26,7 @@ const appointmentsMock: Appointment[] = [
     status: "Pendente",
   },
   {
-    id: "4",
+    id: "appointment-4",
     time: "15:00",
     patient: "Rafael Martins",
     procedure: "Retorno",
@@ -36,5 +36,6 @@ const appointmentsMock: Appointment[] = [
 ];
 
 export async function getAppointments(): Promise<Appointment[]> {
-  return appointmentsMock;
+  // Enquanto o backend ainda não existe, retornamos os dados mockados.
+  return Promise.resolve(appointmentsMock);
 }
