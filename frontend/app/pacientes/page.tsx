@@ -13,6 +13,10 @@ import type { Patient } from "@/types/patient";
 export default function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+  "Todos" | Patient["status"]
+>("Todos");
 
   useEffect(() => {
     async function loadPatients() {
@@ -34,6 +38,22 @@ export default function PatientsPage() {
     ),
   );
 }
+const normalizedSearch = searchTerm
+  .trim()
+  .toLocaleLowerCase("pt-BR");
+
+const filteredPatients = patients.filter((patient) => {
+  const matchesSearch =
+    normalizedSearch.length === 0 ||
+    patient.name.toLocaleLowerCase("pt-BR").includes(normalizedSearch) ||
+    patient.email.toLocaleLowerCase("pt-BR").includes(normalizedSearch) ||
+    patient.phone.includes(searchTerm.trim());
+
+  const matchesStatus =
+    statusFilter === "Todos" || patient.status === statusFilter;
+
+  return matchesSearch && matchesStatus;
+});
 
   return (
     <DashboardLayout>
@@ -55,7 +75,12 @@ export default function PatientsPage() {
           </Link>
         </div>
 
-        <PatientFilters />
+        <PatientFilters
+  searchTerm={searchTerm}
+  status={statusFilter}
+  onSearchChange={setSearchTerm}
+  onStatusChange={setStatusFilter}
+/>
 
         <div className="flex items-center gap-3 rounded-2xl border bg-card p-5 shadow-sm">
           <div className="rounded-xl bg-blue-50 p-3 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
@@ -67,26 +92,41 @@ export default function PatientsPage() {
               Pacientes cadastrados
             </p>
             <strong className="text-2xl">
-              {isLoading ? "..." : patients.length}
-            </strong>
+  {isLoading ? "..." : filteredPatients.length}
+</strong>
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="rounded-2xl border bg-card p-8 text-center text-sm text-muted-foreground">
-            Carregando pacientes...
-          </div>
-        ) : (
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {patients.map((patient) => (
-              <PatientCard
-              key={patient.id}
-              patient={patient}
-              onDeleted={handlePatientDeleted}
-               />
-            ))}
-          </div>
-        )}
+   {isLoading ? (
+  <div className="rounded-2xl border bg-card p-8 text-center text-sm text-muted-foreground">
+    Carregando pacientes...
+  </div>
+) : filteredPatients.length === 0 ? (
+  <div className="rounded-2xl border bg-card p-10 text-center">
+    <Users
+      size={42}
+      className="mx-auto text-muted-foreground"
+    />
+
+    <h2 className="mt-4 text-lg font-bold">
+      Nenhum paciente encontrado
+    </h2>
+
+    <p className="mt-1 text-sm text-muted-foreground">
+      Ajuste a busca ou o filtro para visualizar outros pacientes.
+    </p>
+  </div>
+) : (
+  <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+    {filteredPatients.map((patient) => (
+      <PatientCard
+        key={patient.id}
+        patient={patient}
+        onDeleted={handlePatientDeleted}
+      />
+    ))}
+  </div>
+)}
       </section>
     </DashboardLayout>
   );
