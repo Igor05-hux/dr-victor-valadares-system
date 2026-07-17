@@ -7,14 +7,20 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { ClinicalEvolution } from "@/components/medical-record/clinical-evolution";
 import { ConsultationTimeline } from "@/components/medical-record/consultation-timeline";
 import { MedicalHistory } from "@/components/medical-record/medical-history";
 import { PatientSummary } from "@/components/medical-record/patient-summary";
 import { QuickActions } from "@/components/medical-record/quick-actions";
 import { getMedicalRecordByPatientId } from "@/services/medical-record.service";
 import { getPatientById } from "@/services/patient.service";
-import type { MedicalRecord } from "@/types/medical-record";
+import type {
+  ClinicalEvolution as ClinicalEvolutionType,
+  MedicalHistoryItem,
+  MedicalRecord,
+} from "@/types/medical-record";
 import type { Patient } from "@/types/patient";
+import { Prescriptions } from "@/components/medical-record/prescriptions";
 
 export default function MedicalRecordPage() {
   const params = useParams<{ id: string }>();
@@ -51,6 +57,40 @@ export default function MedicalRecordPage() {
     void loadMedicalRecord();
   }, [params.id, router]);
 
+  function handleHistoryItemCreated(
+    category: "allergies" | "conditions" | "medications",
+    item: MedicalHistoryItem,
+  ) {
+    setMedicalRecord((currentRecord) => {
+      if (!currentRecord) {
+        return currentRecord;
+      }
+
+      return {
+        ...currentRecord,
+        [category]: [...currentRecord[category], item],
+      };
+    });
+  }
+
+  function handleEvolutionCreated(
+    evolution: ClinicalEvolutionType,
+  ) {
+    setMedicalRecord((currentRecord) => {
+      if (!currentRecord) {
+        return currentRecord;
+      }
+
+      return {
+        ...currentRecord,
+        evolutions: [
+          evolution,
+          ...currentRecord.evolutions,
+        ],
+      };
+    });
+  }
+
   return (
     <DashboardLayout>
       <section className="space-y-6">
@@ -83,10 +123,22 @@ export default function MedicalRecordPage() {
             <PatientSummary patient={patient} />
 
             <MedicalHistory
+              patientId={patient.id}
               allergies={medicalRecord.allergies}
               conditions={medicalRecord.conditions}
               medications={medicalRecord.medications}
+              onItemCreated={handleHistoryItemCreated}
             />
+
+            <ClinicalEvolution
+              patientId={patient.id}
+              evolutions={medicalRecord.evolutions}
+              onCreated={handleEvolutionCreated}
+            />
+
+            <Prescriptions
+               prescriptions={medicalRecord.prescriptions}
+               />
 
             <div className="grid gap-6 xl:grid-cols-[1.6fr_0.7fr]">
               <ConsultationTimeline
