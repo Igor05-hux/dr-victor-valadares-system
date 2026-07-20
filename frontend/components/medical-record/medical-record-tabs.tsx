@@ -4,6 +4,7 @@ import {
   ClipboardList,
   FileText,
   History,
+  Smile,
   Stethoscope,
 } from "lucide-react";
 
@@ -11,6 +12,7 @@ export type MedicalRecordTab =
   | "summary"
   | "evolutions"
   | "prescriptions"
+  | "odontogram"
   | "consultations";
 
 interface MedicalRecordTabsProps {
@@ -37,6 +39,11 @@ const tabs: Array<{
     id: "prescriptions",
     label: "Receitas",
     icon: FileText,
+  },
+  {
+    id: "odontogram",
+    label: "Odontograma",
+    icon: Smile,
   },
   {
     id: "consultations",

@@ -10,6 +10,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { ClinicalEvolution } from "@/components/medical-record/clinical-evolution";
 import { ConsultationTimeline } from "@/components/medical-record/consultation-timeline";
 import { MedicalHistory } from "@/components/medical-record/medical-history";
+import { MedicalRecordStats } from "@/components/medical-record/medical-record-stats";
 import {
   MedicalRecordTabs,
   type MedicalRecordTab,
@@ -18,10 +19,15 @@ import { PatientSummary } from "@/components/medical-record/patient-summary";
 import { PrescriptionForm } from "@/components/medical-record/prescription-form";
 import { Prescriptions } from "@/components/medical-record/prescriptions";
 import { QuickActions } from "@/components/medical-record/quick-actions";
+import { Odontogram } from "@/components/odontogram/odontogram";
 import {
   addPrescription,
   getMedicalRecordByPatientId,
 } from "@/services/medical-record.service";
+import {
+  getOdontogramByPatientId,
+  updateOdontogramTooth,
+} from "@/services/odontogram.service";
 import { getPatientById } from "@/services/patient.service";
 import type {
   ClinicalEvolution as ClinicalEvolutionType,
@@ -29,6 +35,7 @@ import type {
   MedicalRecord,
   PrescriptionItem,
 } from "@/types/medical-record";
+import type { Tooth } from "@/types/odontogram";
 import type { Patient } from "@/types/patient";
 
 export default function MedicalRecordPage() {
@@ -40,6 +47,8 @@ export default function MedicalRecordPage() {
   const [medicalRecord, setMedicalRecord] =
     useState<MedicalRecord | null>(null);
 
+  const [teeth, setTeeth] = useState<Tooth[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
 
   const [activeTab, setActiveTab] =
@@ -48,9 +57,14 @@ export default function MedicalRecordPage() {
   useEffect(() => {
     async function loadMedicalRecord() {
       try {
-        const [patientData, recordData] = await Promise.all([
+        const [
+          patientData,
+          recordData,
+          odontogramData,
+        ] = await Promise.all([
           getPatientById(params.id),
           getMedicalRecordByPatientId(params.id),
+          getOdontogramByPatientId(params.id),
         ]);
 
         if (!patientData) {
@@ -61,6 +75,7 @@ export default function MedicalRecordPage() {
 
         setPatient(patientData);
         setMedicalRecord(recordData);
+        setTeeth(odontogramData.teeth);
       } catch {
         toast.error("Não foi possível carregar o prontuário.");
       } finally {
@@ -147,6 +162,32 @@ export default function MedicalRecordPage() {
     }
   }
 
+  async function handleToothUpdate(
+    updatedTooth: Tooth,
+  ) {
+    if (!patient) {
+      return;
+    }
+
+    try {
+      const updatedOdontogram =
+        await updateOdontogramTooth(
+          patient.id,
+          updatedTooth,
+        );
+
+      setTeeth(updatedOdontogram.teeth);
+
+      toast.success(
+        `Estado do dente ${updatedTooth.number} atualizado.`,
+      );
+    } catch {
+      toast.error(
+        "Não foi possível atualizar o dente.",
+      );
+    }
+  }
+
   return (
     <DashboardLayout>
       <section className="space-y-6">
@@ -177,6 +218,21 @@ export default function MedicalRecordPage() {
         ) : patient && medicalRecord ? (
           <>
             <PatientSummary patient={patient} />
+
+            <MedicalRecordStats
+              historyCount={
+                medicalRecord.allergies.length +
+                medicalRecord.conditions.length +
+                medicalRecord.medications.length
+              }
+              evolutionsCount={medicalRecord.evolutions.length}
+              prescriptionsCount={
+                medicalRecord.prescriptions.length
+              }
+              consultationsCount={
+                medicalRecord.consultations.length
+              }
+            />
 
             <MedicalRecordTabs
               activeTab={activeTab}
@@ -211,6 +267,13 @@ export default function MedicalRecordPage() {
                   prescriptions={medicalRecord.prescriptions}
                 />
               </div>
+            )}
+
+            {activeTab === "odontogram" && (
+              <Odontogram
+                teeth={teeth}
+                onToothUpdate={handleToothUpdate}
+              />
             )}
 
             {activeTab === "consultations" && (
