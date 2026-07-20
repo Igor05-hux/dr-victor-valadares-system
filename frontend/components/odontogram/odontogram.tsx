@@ -2,28 +2,47 @@
 
 import { useState } from "react";
 
-import { ToothCard } from "./tooth-card";
-import { ToothModal } from "./tooth-modal";
-
 import type {
   Tooth,
+  ToothHistoryEntry,
   ToothStatus,
 } from "@/types/odontogram";
 
+import { ToothCard } from "./tooth-card";
+import { ToothHistory } from "./tooth-history";
+import { ToothModal } from "./tooth-modal";
+
 interface OdontogramProps {
   teeth: Tooth[];
+  history: ToothHistoryEntry[];
   onToothUpdate?: (tooth: Tooth) => void;
 }
 
 export function Odontogram({
   teeth,
+  history,
   onToothUpdate,
 }: OdontogramProps) {
   const [selectedTooth, setSelectedTooth] =
     useState<Tooth | null>(null);
 
-  const upperTeeth = teeth.slice(0, 16);
-  const lowerTeeth = teeth.slice(16);
+  const upperTeeth = teeth.filter(
+    (tooth) =>
+      tooth.number >= 11 && tooth.number <= 28,
+  );
+
+  const lowerTeeth = teeth.filter(
+    (tooth) =>
+      tooth.number >= 31 && tooth.number <= 48,
+  );
+
+  function handleToothClick(tooth: Tooth) {
+    setSelectedTooth(tooth);
+  }
+
+  function handleCloseModal() {
+    setSelectedTooth(null);
+  }
 
   function handleSave(
     status: ToothStatus,
@@ -33,57 +52,58 @@ export function Odontogram({
       return;
     }
 
-    onToothUpdate?.({
+    const updatedTooth: Tooth = {
       ...selectedTooth,
       status,
-      notes,
-      updatedAt: new Date().toISOString(),
-    });
+      notes: notes || undefined,
+    };
 
+    onToothUpdate?.(updatedTooth);
     setSelectedTooth(null);
   }
 
   return (
-    <>
-      <section className="rounded-2xl border bg-card p-6 shadow-sm">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold">
+    <div className="space-y-6">
+      <section className="rounded-2xl border bg-card p-5">
+        <div>
+          <h2 className="text-lg font-semibold">
             Odontograma
           </h2>
 
-          <p className="text-sm text-muted-foreground">
-            Clique em um dente para alterar seu estado.
+          <p className="mt-1 text-sm text-muted-foreground">
+            Selecione um dente para atualizar seu estado
+            clínico e adicionar observações.
           </p>
         </div>
 
-        <div className="space-y-10">
+        <div className="mt-6 space-y-8">
           <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Arcada Superior
-            </h3>
+            <p className="mb-3 text-sm font-semibold">
+              Arcada superior
+            </p>
 
-            <div className="flex flex-wrap justify-center gap-3">
+            <div className="grid grid-cols-4 gap-3 sm:grid-cols-8 xl:grid-cols-16">
               {upperTeeth.map((tooth) => (
                 <ToothCard
                   key={tooth.number}
                   tooth={tooth}
-                  onClick={setSelectedTooth}
+                  onClick={handleToothClick}
                 />
               ))}
             </div>
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Arcada Inferior
-            </h3>
+            <p className="mb-3 text-sm font-semibold">
+              Arcada inferior
+            </p>
 
-            <div className="flex flex-wrap justify-center gap-3">
+            <div className="grid grid-cols-4 gap-3 sm:grid-cols-8 xl:grid-cols-16">
               {lowerTeeth.map((tooth) => (
                 <ToothCard
                   key={tooth.number}
                   tooth={tooth}
-                  onClick={setSelectedTooth}
+                  onClick={handleToothClick}
                 />
               ))}
             </div>
@@ -91,12 +111,14 @@ export function Odontogram({
         </div>
       </section>
 
+      <ToothHistory history={history} />
+
       <ToothModal
         tooth={selectedTooth}
-        open={selectedTooth !== null}
-        onClose={() => setSelectedTooth(null)}
+        open={Boolean(selectedTooth)}
+        onClose={handleCloseModal}
         onSave={handleSave}
       />
-    </>
+    </div>
   );
 }

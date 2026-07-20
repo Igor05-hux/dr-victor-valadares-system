@@ -2,6 +2,7 @@ import {
   permanentTeeth,
   type Odontogram,
   type Tooth,
+  type ToothHistoryEntry,
 } from "@/types/odontogram";
 
 const STORAGE_KEY = "victor-valadares-odontograms";
@@ -14,6 +15,19 @@ function createDefaultTeeth(): Tooth[] {
   return permanentTeeth.map((tooth) => ({
     ...tooth,
   }));
+}
+
+function createHistoryId() {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `history-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 9)}`;
 }
 
 function getStoredOdontograms(): Odontogram[] {
@@ -30,9 +44,11 @@ function getStoredOdontograms(): Odontogram[] {
 
     const parsedData = JSON.parse(storedData);
 
-    return Array.isArray(parsedData)
-      ? (parsedData as Odontogram[])
-      : [];
+    if (!Array.isArray(parsedData)) {
+      return [];
+    }
+
+    return parsedData as Odontogram[];
   } catch {
     return [];
   }
@@ -67,12 +83,14 @@ export async function getOdontogramByPatientId(
       teeth: existingOdontogram.teeth.map((tooth) => ({
         ...tooth,
       })),
+      history: [...(existingOdontogram.history ?? [])],
     };
   }
 
   const newOdontogram: Odontogram = {
     patientId,
     teeth: createDefaultTeeth(),
+    history: [],
     updatedAt: new Date().toISOString(),
   };
 
@@ -98,15 +116,57 @@ export async function updateOdontogramTooth(
   const currentTeeth =
     existingOdontogram?.teeth ?? createDefaultTeeth();
 
+  const previousTooth = currentTeeth.find(
+    (tooth) => tooth.number === updatedTooth.number,
+  );
+
+  if (!previousTooth) {
+    throw new Error("Dente não encontrado.");
+  }
+
+  const hasStatusChanged =
+    previousTooth.status !== updatedTooth.status;
+
+  const hasNotesChanged =
+    (previousTooth.notes ?? "") !==
+    (updatedTooth.notes ?? "");
+
+  if (!hasStatusChanged && !hasNotesChanged) {
+    return {
+      patientId,
+      teeth: currentTeeth,
+      history: existingOdontogram?.history ?? [],
+      updatedAt:
+        existingOdontogram?.updatedAt ??
+        new Date().toISOString(),
+    };
+  }
+
   const updatedTeeth = currentTeeth.map((tooth) =>
     tooth.number === updatedTooth.number
       ? { ...updatedTooth }
       : tooth,
   );
 
+  const historyEntry: ToothHistoryEntry = {
+    id: createHistoryId(),
+    toothNumber: updatedTooth.number,
+    toothName: updatedTooth.name,
+    previousStatus: previousTooth.status,
+    newStatus: updatedTooth.status,
+    previousNotes: previousTooth.notes,
+    newNotes: updatedTooth.notes,
+    professional: "Dr. Victor Valadares",
+    createdAt: new Date().toISOString(),
+  };
+
   const updatedOdontogram: Odontogram = {
     patientId,
     teeth: updatedTeeth,
+    history: [
+      historyEntry,
+      ...(existingOdontogram?.history ?? []),
+    ],
     updatedAt: new Date().toISOString(),
   };
 
