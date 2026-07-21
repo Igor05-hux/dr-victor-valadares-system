@@ -59,6 +59,18 @@ async function getDocuments(): Promise<
   }
 }
 
+function sortDocumentsByDate(
+  documents: MedicalDocument[],
+): MedicalDocument[] {
+  return [...documents].sort(
+    (firstDocument, secondDocument) =>
+      new Date(
+        secondDocument.createdAt,
+      ).getTime() -
+      new Date(firstDocument.createdAt).getTime(),
+  );
+}
+
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -102,23 +114,25 @@ function validateFile(file: File): void {
   }
 }
 
+export async function getAllMedicalDocuments(): Promise<
+  MedicalDocument[]
+> {
+  const documents = await getDocuments();
+
+  return sortDocumentsByDate(documents);
+}
+
 export async function getMedicalDocumentsByPatientId(
   patientId: string,
 ): Promise<MedicalDocument[]> {
   const documents = await getDocuments();
 
-  return documents
-    .filter(
-      (document) =>
-        document.patientId === patientId,
-    )
-    .sort(
-      (firstDocument, secondDocument) =>
-        new Date(
-          secondDocument.createdAt,
-        ).getTime() -
-        new Date(firstDocument.createdAt).getTime(),
-    );
+  const patientDocuments = documents.filter(
+    (document) =>
+      document.patientId === patientId,
+  );
+
+  return sortDocumentsByDate(patientDocuments);
 }
 
 export async function addMedicalDocument(
