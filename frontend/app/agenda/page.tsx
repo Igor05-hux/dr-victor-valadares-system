@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,13 +17,13 @@ import { AppointmentCard } from "@/components/schedule/appointment-card";
 import { AppointmentFormModal } from "@/components/schedule/appointment-form-modal";
 import { ScheduleFilters } from "@/components/schedule/schedule-filters";
 import { ScheduleSummary } from "@/components/schedule/schedule-summary";
+import { getPatients } from "@/services/patient.service";
 import {
   createAppointment,
   deleteAppointment,
   getAppointments,
   updateAppointment,
 } from "@/services/schedule.service";
-import { getPatients } from "@/services/patient.service";
 import type {
   Appointment,
   AppointmentStatus,
@@ -32,21 +37,25 @@ interface WeekDay {
   date: string;
 }
 
-const initialDate = "2026-07-14";
-
 function createDateFromValue(value: string): Date {
   return new Date(`${value}T12:00:00`);
 }
 
 function formatDateValue(date: Date): string {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(
+  const month = String(
+    date.getMonth() + 1,
+  ).padStart(2, "0");
+  const day = String(date.getDate()).padStart(
     2,
     "0",
   );
-  const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function getTodayValue(): string {
+  return formatDateValue(new Date());
 }
 
 function getStartOfWeek(dateValue: string): Date {
@@ -75,27 +84,33 @@ function getWeekDays(dateValue: string): WeekDay[] {
 
   return dayLabels.map((day, index) => {
     const date = new Date(startOfWeek);
-    date.setDate(startOfWeek.getDate() + index);
+
+    date.setDate(
+      startOfWeek.getDate() + index,
+    );
 
     return {
       day,
-      dateLabel: String(date.getDate()).padStart(
-        2,
-        "0",
-      ),
+      dateLabel: String(
+        date.getDate(),
+      ).padStart(2, "0"),
       date: formatDateValue(date),
     };
   });
 }
 
-function formatMonthYear(dateValue: string): string {
+function formatMonthYear(
+  dateValue: string,
+): string {
   return new Intl.DateTimeFormat("pt-BR", {
     month: "long",
     year: "numeric",
   }).format(createDateFromValue(dateValue));
 }
 
-function formatWeekPeriod(dateValue: string): string {
+function formatWeekPeriod(
+  dateValue: string,
+): string {
   const weekDays = getWeekDays(dateValue);
 
   return `Semana de ${Number(
@@ -106,20 +121,36 @@ function formatWeekPeriod(dateValue: string): string {
 }
 
 export default function AgendaPage() {
-  const [appointments, setAppointments] = useState<
-    Appointment[]
+  const [appointments, setAppointments] =
+    useState<Appointment[]>([]);
+  const [patients, setPatients] = useState<
+    Patient[]
   >([]);
-  const [patients, setPatients] = useState<Patient[]>(
-    [],
-  );
+
   const [selectedDate, setSelectedDate] =
-    useState(initialDate);
-  const [isLoading, setIsLoading] = useState(true);
+    useState(getTodayValue);
+
+  const [searchTerm, setSearchTerm] =
+    useState("");
+  const [
+    professionalFilter,
+    setProfessionalFilter,
+  ] = useState("Todos");
+  const [statusFilter, setStatusFilter] =
+    useState<"Todos" | AppointmentStatus>(
+      "Todos",
+    );
+
+  const [isLoading, setIsLoading] =
+    useState(true);
   const [isFormOpen, setIsFormOpen] =
     useState(false);
-  const [selectedAppointment, setSelectedAppointment] =
-    useState<Appointment | null>(null);
-  const [pageError, setPageError] = useState("");
+  const [
+    selectedAppointment,
+    setSelectedAppointment,
+  ] = useState<Appointment | null>(null);
+  const [pageError, setPageError] =
+    useState("");
 
   const loadData = useCallback(async () => {
     try {
@@ -156,7 +187,7 @@ export default function AgendaPage() {
     [selectedDate],
   );
 
-  const selectedDateAppointments = useMemo(
+  const dayAppointments = useMemo(
     () =>
       appointments
         .filter(
@@ -169,12 +200,74 @@ export default function AgendaPage() {
     [appointments, selectedDate],
   );
 
+  const professionals = useMemo(() => {
+    return Array.from(
+      new Set(
+        appointments
+          .map(
+            (appointment) =>
+              appointment.professional,
+          )
+          .filter(Boolean),
+      ),
+    ).sort((first, second) =>
+      first.localeCompare(second),
+    );
+  }, [appointments]);
+
+  const filteredAppointments = useMemo(() => {
+    const normalizedSearchTerm =
+      searchTerm.trim().toLocaleLowerCase(
+        "pt-BR",
+      );
+
+    return dayAppointments.filter(
+      (appointment) => {
+        const matchesSearch =
+          normalizedSearchTerm === "" ||
+          appointment.patient
+            .toLocaleLowerCase("pt-BR")
+            .includes(normalizedSearchTerm) ||
+          appointment.procedure
+            .toLocaleLowerCase("pt-BR")
+            .includes(normalizedSearchTerm);
+
+        const matchesProfessional =
+          professionalFilter === "Todos" ||
+          appointment.professional ===
+            professionalFilter;
+
+        const matchesStatus =
+          statusFilter === "Todos" ||
+          appointment.status === statusFilter;
+
+        return (
+          matchesSearch &&
+          matchesProfessional &&
+          matchesStatus
+        );
+      },
+    );
+  }, [
+    dayAppointments,
+    professionalFilter,
+    searchTerm,
+    statusFilter,
+  ]);
+
+  const hasActiveFilters =
+    searchTerm.trim() !== "" ||
+    professionalFilter !== "Todos" ||
+    statusFilter !== "Todos";
+
   function openCreateForm() {
     setSelectedAppointment(null);
     setIsFormOpen(true);
   }
 
-  function openEditForm(appointment: Appointment) {
+  function openEditForm(
+    appointment: Appointment,
+  ) {
     setSelectedAppointment(appointment);
     setIsFormOpen(true);
   }
@@ -182,6 +275,12 @@ export default function AgendaPage() {
   function closeForm() {
     setIsFormOpen(false);
     setSelectedAppointment(null);
+  }
+
+  function clearFilters() {
+    setSearchTerm("");
+    setProfessionalFilter("Todos");
+    setStatusFilter("Todos");
   }
 
   async function handleFormSubmit(
@@ -208,17 +307,21 @@ export default function AgendaPage() {
     try {
       setPageError("");
 
-      await updateAppointment(appointment.id, {
-        patientId: appointment.patientId,
-        patient: appointment.patient,
-        procedure: appointment.procedure,
-        professional: appointment.professional,
-        date: appointment.date,
-        time: appointment.time,
-        duration: appointment.duration,
-        status,
-        notes: appointment.notes,
-      });
+      await updateAppointment(
+        appointment.id,
+        {
+          patientId: appointment.patientId,
+          patient: appointment.patient,
+          procedure: appointment.procedure,
+          professional:
+            appointment.professional,
+          date: appointment.date,
+          time: appointment.time,
+          duration: appointment.duration,
+          status,
+          notes: appointment.notes,
+        },
+      );
 
       await loadData();
     } catch (error) {
@@ -233,9 +336,10 @@ export default function AgendaPage() {
   async function handleDelete(
     appointment: Appointment,
   ) {
-    const shouldDelete = window.confirm(
-      `Deseja realmente excluir a consulta de ${appointment.patient}?`,
-    );
+    const shouldDelete =
+      window.confirm(
+        `Deseja realmente excluir a consulta de ${appointment.patient}?`,
+      );
 
     if (!shouldDelete) {
       return;
@@ -243,7 +347,9 @@ export default function AgendaPage() {
 
     try {
       setPageError("");
-      await deleteAppointment(appointment.id);
+      await deleteAppointment(
+        appointment.id,
+      );
       await loadData();
     } catch (error) {
       setPageError(
@@ -254,15 +360,21 @@ export default function AgendaPage() {
     }
   }
 
-  function changeWeek(numberOfDays: number) {
-    const date = createDateFromValue(selectedDate);
-    date.setDate(date.getDate() + numberOfDays);
+  function changeWeek(
+    numberOfDays: number,
+  ) {
+    const date =
+      createDateFromValue(selectedDate);
+
+    date.setDate(
+      date.getDate() + numberOfDays,
+    );
 
     setSelectedDate(formatDateValue(date));
   }
 
   function goToToday() {
-    setSelectedDate(formatDateValue(new Date()));
+    setSelectedDate(getTodayValue());
   }
 
   return (
@@ -273,6 +385,7 @@ export default function AgendaPage() {
             <h1 className="text-2xl font-bold">
               Agenda
             </h1>
+
             <p className="text-sm text-muted-foreground">
               Gerencie consultas, horários e
               confirmações.
@@ -301,7 +414,9 @@ export default function AgendaPage() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => changeWeek(-7)}
+                  onClick={() =>
+                    changeWeek(-7)
+                  }
                   className="flex h-10 w-10 items-center justify-center rounded-xl border hover:bg-muted"
                   aria-label="Semana anterior"
                 >
@@ -310,16 +425,23 @@ export default function AgendaPage() {
 
                 <div>
                   <h2 className="font-bold capitalize">
-                    {formatMonthYear(selectedDate)}
+                    {formatMonthYear(
+                      selectedDate,
+                    )}
                   </h2>
+
                   <p className="text-sm text-muted-foreground">
-                    {formatWeekPeriod(selectedDate)}
+                    {formatWeekPeriod(
+                      selectedDate,
+                    )}
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => changeWeek(7)}
+                  onClick={() =>
+                    changeWeek(7)
+                  }
                   className="flex h-10 w-10 items-center justify-center rounded-xl border hover:bg-muted"
                   aria-label="Próxima semana"
                 >
@@ -351,10 +473,13 @@ export default function AgendaPage() {
                   key={item.date}
                   type="button"
                   onClick={() =>
-                    setSelectedDate(item.date)
+                    setSelectedDate(
+                      item.date,
+                    )
                   }
                   className={`rounded-2xl border p-3 text-center transition ${
-                    item.date === selectedDate
+                    item.date ===
+                    selectedDate
                       ? "border-blue-600 bg-blue-600 text-white"
                       : "hover:bg-muted"
                   }`}
@@ -362,6 +487,7 @@ export default function AgendaPage() {
                   <span className="block text-xs font-semibold opacity-75">
                     {item.day}
                   </span>
+
                   <strong className="mt-1 block text-xl">
                     {item.dateLabel}
                   </strong>
@@ -374,34 +500,54 @@ export default function AgendaPage() {
                 <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
                   Carregando consultas...
                 </div>
-              ) : selectedDateAppointments.length ===
+              ) : filteredAppointments.length ===
                 0 ? (
                 <div className="rounded-2xl border border-dashed p-8 text-center">
                   <p className="font-semibold">
-                    Nenhuma consulta neste dia
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Selecione outro dia ou cadastre uma
-                    nova consulta.
+                    {hasActiveFilters
+                      ? "Nenhuma consulta encontrada"
+                      : "Nenhuma consulta neste dia"}
                   </p>
 
-                  <button
-                    type="button"
-                    onClick={openCreateForm}
-                    className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                  >
-                    Nova consulta
-                  </button>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {hasActiveFilters
+                      ? "Tente alterar ou limpar os filtros aplicados."
+                      : "Selecione outro dia ou cadastre uma nova consulta."}
+                  </p>
+
+                  {hasActiveFilters ? (
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="mt-4 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:bg-muted"
+                    >
+                      Limpar filtros
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={openCreateForm}
+                      className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                    >
+                      Nova consulta
+                    </button>
+                  )}
                 </div>
               ) : (
-                selectedDateAppointments.map(
+                filteredAppointments.map(
                   (appointment) => (
                     <AppointmentCard
                       key={appointment.id}
-                      appointment={appointment}
-                      onEdit={openEditForm}
+                      appointment={
+                        appointment
+                      }
+                      onEdit={
+                        openEditForm
+                      }
                       onDelete={(item) =>
-                        void handleDelete(item)
+                        void handleDelete(
+                          item,
+                        )
                       }
                       onStatusChange={
                         handleStatusChange
@@ -414,8 +560,34 @@ export default function AgendaPage() {
           </article>
 
           <aside className="space-y-6">
-            <ScheduleFilters />
-            <ScheduleSummary />
+            <ScheduleFilters
+              searchTerm={searchTerm}
+              professionalFilter={
+                professionalFilter
+              }
+              statusFilter={statusFilter}
+              professionals={
+                professionals
+              }
+              onSearchChange={
+                setSearchTerm
+              }
+              onProfessionalChange={
+                setProfessionalFilter
+              }
+              onStatusChange={
+                setStatusFilter
+              }
+              onClearFilters={
+                clearFilters
+              }
+            />
+
+            <ScheduleSummary
+              appointments={
+                dayAppointments
+              }
+            />
           </aside>
         </div>
       </section>
@@ -423,7 +595,9 @@ export default function AgendaPage() {
       <AppointmentFormModal
         isOpen={isFormOpen}
         patients={patients}
-        appointment={selectedAppointment}
+        appointment={
+          selectedAppointment
+        }
         initialDate={selectedDate}
         onClose={closeForm}
         onSubmit={handleFormSubmit}
