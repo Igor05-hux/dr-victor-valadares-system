@@ -3,17 +3,21 @@
 import {
   ClipboardList,
   FileText,
+  FolderOpen,
   History,
   Smile,
   Stethoscope,
+  TimerReset,
 } from "lucide-react";
 
 export type MedicalRecordTab =
   | "summary"
+  | "timeline"
   | "evolutions"
   | "prescriptions"
   | "odontogram"
-  | "consultations";
+  | "consultations"
+  | "documents";
 
 interface MedicalRecordTabsProps {
   activeTab: MedicalRecordTab;
@@ -31,6 +35,11 @@ const tabs: Array<{
     icon: ClipboardList,
   },
   {
+    id: "timeline",
+    label: "Timeline",
+    icon: TimerReset,
+  },
+  {
     id: "evolutions",
     label: "Evoluções",
     icon: Stethoscope,
@@ -39,6 +48,11 @@ const tabs: Array<{
     id: "prescriptions",
     label: "Receitas",
     icon: FileText,
+  },
+  {
+  id: "documents",
+  label: "Documentos",
+  icon: FolderOpen,
   },
   {
     id: "odontogram",

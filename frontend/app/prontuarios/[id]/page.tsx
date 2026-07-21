@@ -21,6 +21,10 @@ import { PrescriptionForm } from "@/components/medical-record/prescription-form"
 import { Prescriptions } from "@/components/medical-record/prescriptions";
 import { QuickActions } from "@/components/medical-record/quick-actions";
 import { Odontogram } from "@/components/odontogram/odontogram";
+import { ClinicalTimeline } from "@/components/medical-record/clinical-timeline";
+import { buildTimelineEvents } from "@/services/timeline.service";
+import { MedicalDocumentForm } from "@/components/medical-record/medical-document-form";
+import { MedicalDocuments } from "@/components/medical-record/medical-documents";
 
 export default function MedicalRecordPage() {
   const params = useParams<{ id: string }>();
@@ -33,20 +37,33 @@ export default function MedicalRecordPage() {
     router.push("/pacientes");
   }, [router]);
 
-  const {
-    patient,
-    medicalRecord,
-    teeth,
-    toothHistory,
-    isLoading,
-    handleHistoryItemCreated,
-    handleEvolutionCreated,
-    handlePrescriptionCreated,
-    handleToothUpdate,
-  } = useMedicalRecord({
-    patientId: params.id,
-    onPatientNotFound: handlePatientNotFound,
-  });
+const {
+  patient,
+  medicalRecord,
+  teeth,
+  toothHistory,
+  documents,
+  isLoading,
+  handleHistoryItemCreated,
+  handleEvolutionCreated,
+  handlePrescriptionCreated,
+  handleToothUpdate,
+  handleDocumentCreated,
+  handleDocumentDeleted,
+} = useMedicalRecord({
+  patientId: params.id,
+  onPatientNotFound: handlePatientNotFound,
+});
+
+  const timelineEvents = medicalRecord
+  ? buildTimelineEvents(
+      medicalRecord,
+      toothHistory,
+    )
+  : [];
+
+  console.log("medicalRecord", medicalRecord);
+  console.log("timelineEvents", timelineEvents);
 
   return (
     <DashboardLayout>
@@ -109,6 +126,13 @@ export default function MedicalRecordPage() {
               />
             )}
 
+
+
+           {activeTab === "timeline" && (
+            <ClinicalTimeline
+               events={timelineEvents}
+             />
+            )}
             {activeTab === "evolutions" && (
               <ClinicalEvolution
                 patientId={patient.id}
@@ -117,25 +141,39 @@ export default function MedicalRecordPage() {
               />
             )}
 
-            {activeTab === "prescriptions" && (
-              <div className="space-y-6">
-                <PrescriptionForm
-                  onSave={handlePrescriptionCreated}
-                />
+           {activeTab === "prescriptions" && (
+  <div className="space-y-6">
+    <PrescriptionForm
+      onSave={handlePrescriptionCreated}
+    />
 
-                <Prescriptions
-                  prescriptions={medicalRecord.prescriptions}
-                />
-              </div>
-            )}
+    <Prescriptions
+      prescriptions={medicalRecord.prescriptions}
+    />
+  </div>
+)}
 
-            {activeTab === "odontogram" && (
-              <Odontogram
-                teeth={teeth}
-                history={toothHistory}
-                onToothUpdate={handleToothUpdate}
-              />
-            )}
+{activeTab === "documents" && (
+  <div className="space-y-6">
+    <MedicalDocumentForm
+      patientId={patient.id}
+      onSave={handleDocumentCreated}
+    />
+
+    <MedicalDocuments
+      documents={documents}
+      onDelete={handleDocumentDeleted}
+    />
+  </div>
+)}
+
+{activeTab === "odontogram" && (
+  <Odontogram
+    teeth={teeth}
+    history={toothHistory}
+    onToothUpdate={handleToothUpdate}
+  />
+)}
 
             {activeTab === "consultations" && (
               <div className="grid gap-6 xl:grid-cols-[1.6fr_0.7fr]">

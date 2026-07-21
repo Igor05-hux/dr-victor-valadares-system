@@ -54,6 +54,17 @@ const menuItems = [
 export function Sidebar() {
   const pathname = usePathname();
 
+  function isItemActive(href: string): boolean {
+    if (href === "/") {
+      return pathname === "/";
+    }
+
+    return (
+      pathname === href ||
+      pathname.startsWith(`${href}/`)
+    );
+  }
+
   return (
     <aside className="hidden min-h-screen w-72 flex-col border-r bg-white lg:flex dark:bg-zinc-950">
       <div className="flex h-20 items-center border-b px-6">
@@ -62,7 +73,10 @@ export function Sidebar() {
         </div>
 
         <div className="ml-3">
-          <h1 className="font-bold">Dr. Victor Valadares</h1>
+          <h1 className="font-bold">
+            Dr. Victor Valadares
+          </h1>
+
           <p className="text-xs text-muted-foreground">
             Gestão Odontológica
           </p>
@@ -76,17 +90,18 @@ export function Sidebar() {
 
         {menuItems.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href;
+          const active = isItemActive(item.href);
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
+              className={[
+                "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition",
                 active
-                  ? "bg-blue-600 text-whitepacientes"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              ].join(" ")}
             >
               <Icon size={19} />
               {item.title}
@@ -98,7 +113,12 @@ export function Sidebar() {
       <div className="border-t p-4">
         <Link
           href="/configuracoes"
-          className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          className={[
+            "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition",
+            pathname.startsWith("/configuracoes")
+              ? "bg-blue-600 text-white shadow-sm"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          ].join(" ")}
         >
           <Settings size={19} />
           Configurações

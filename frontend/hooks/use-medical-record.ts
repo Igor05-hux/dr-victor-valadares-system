@@ -1,8 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
+import {
+  addMedicalDocument,
+  deleteMedicalDocument,
+  getMedicalDocumentsByPatientId,
+} from "@/services/medical-document.service";
 import {
   addPrescription,
   getMedicalRecordByPatientId,
@@ -12,6 +21,11 @@ import {
   updateOdontogramTooth,
 } from "@/services/odontogram.service";
 import { getPatientById } from "@/services/patient.service";
+
+import type {
+  CreateMedicalDocumentInput,
+  MedicalDocument,
+} from "@/types/medical-document";
 import type {
   ClinicalEvolution,
   MedicalHistoryItem,
@@ -44,14 +58,16 @@ export function useMedicalRecord({
   const [medicalRecord, setMedicalRecord] =
     useState<MedicalRecord | null>(null);
 
-  const [teeth, setTeeth] =
-    useState<Tooth[]>([]);
+  const [teeth, setTeeth] = useState<Tooth[]>([]);
 
   const [toothHistory, setToothHistory] =
     useState<ToothHistoryEntry[]>([]);
 
-  const [isLoading, setIsLoading] =
-    useState(true);
+  const [documents, setDocuments] = useState<
+    MedicalDocument[]
+  >([]);
+
+  const [isLoading, setIsLoading] = useState(true);
 
   const loadMedicalRecord = useCallback(
     async () => {
@@ -66,10 +82,12 @@ export function useMedicalRecord({
           patientData,
           recordData,
           odontogramData,
+          documentData,
         ] = await Promise.all([
           getPatientById(patientId),
           getMedicalRecordByPatientId(patientId),
           getOdontogramByPatientId(patientId),
+          getMedicalDocumentsByPatientId(patientId),
         ]);
 
         if (!patientData) {
@@ -84,6 +102,7 @@ export function useMedicalRecord({
         setToothHistory(
           odontogramData.history ?? [],
         );
+        setDocuments(documentData);
       } catch {
         toast.error(
           "Não foi possível carregar o prontuário.",
@@ -150,8 +169,7 @@ export function useMedicalRecord({
           date: new Date()
             .toISOString()
             .slice(0, 10),
-          professional:
-            "Dr. Victor Valadares",
+          professional: "Dr. Victor Valadares",
           items,
           observations:
             observations.trim() || undefined,
@@ -171,9 +189,7 @@ export function useMedicalRecord({
         };
       });
 
-      toast.success(
-        "Receita salva com sucesso.",
-      );
+      toast.success("Receita salva com sucesso.");
     } catch {
       toast.error(
         "Não foi possível salvar a receita.",
@@ -196,7 +212,6 @@ export function useMedicalRecord({
         );
 
       setTeeth(updatedOdontogram.teeth);
-
       setToothHistory(
         updatedOdontogram.history ?? [],
       );
@@ -211,11 +226,65 @@ export function useMedicalRecord({
     }
   }
 
+  async function handleDocumentCreated(
+    input: CreateMedicalDocumentInput,
+  ): Promise<void> {
+    try {
+      const newDocument =
+        await addMedicalDocument(input);
+
+      setDocuments((currentDocuments) => [
+        newDocument,
+        ...currentDocuments,
+      ]);
+
+      toast.success(
+        "Documento adicionado com sucesso.",
+      );
+    } catch (caughtError) {
+      toast.error(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Não foi possível adicionar o documento.",
+      );
+
+      throw caughtError;
+    }
+  }
+
+  async function handleDocumentDeleted(
+    documentId: string,
+  ): Promise<void> {
+    try {
+      await deleteMedicalDocument(documentId);
+
+      setDocuments((currentDocuments) =>
+        currentDocuments.filter(
+          (document) =>
+            document.id !== documentId,
+        ),
+      );
+
+      toast.success(
+        "Documento excluído com sucesso.",
+      );
+    } catch (caughtError) {
+      toast.error(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Não foi possível excluir o documento.",
+      );
+
+      throw caughtError;
+    }
+  }
+
   return {
     patient,
     medicalRecord,
     teeth,
     toothHistory,
+    documents,
     isLoading,
 
     reloadMedicalRecord: loadMedicalRecord,
@@ -223,5 +292,7 @@ export function useMedicalRecord({
     handleEvolutionCreated,
     handlePrescriptionCreated,
     handleToothUpdate,
+    handleDocumentCreated,
+    handleDocumentDeleted,
   };
 }
