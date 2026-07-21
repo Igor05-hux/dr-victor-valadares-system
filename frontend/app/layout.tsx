@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { ThemeProvider } from "@/components/theme-provider";
-import "./globals.css";
 import { Toaster } from "sonner";
+
+import { ThemeProvider } from "@/components/theme-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Dr. Victor Valadares",
-  description: "Sistema profissional de gestão odontológica",
+  description:
+    "Sistema profissional de gestão odontológica",
 };
 
 export default function RootLayout({
@@ -18,14 +20,22 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body>
         <ThemeProvider
-  attribute="class"
-  defaultTheme="light"
-  enableSystem
-  disableTransitionOnChange
->
-  <TooltipProvider>{children}</TooltipProvider>
-  <Toaster richColors position="top-right" />
-</ThemeProvider>
+          attribute="class"
+          defaultTheme="light"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <TooltipProvider>
+            {children}
+          </TooltipProvider>
+
+          <Toaster
+            richColors
+            closeButton
+            position="top-right"
+            duration={3500}
+          />
+        </ThemeProvider>
       </body>
     </html>
   );

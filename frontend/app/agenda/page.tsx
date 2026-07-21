@@ -11,12 +11,14 @@ import {
   ChevronRight,
   Plus,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { AppointmentCard } from "@/components/schedule/appointment-card";
 import { AppointmentFormModal } from "@/components/schedule/appointment-form-modal";
 import { ScheduleFilters } from "@/components/schedule/schedule-filters";
 import { ScheduleSummary } from "@/components/schedule/schedule-summary";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { getPatients } from "@/services/patient.service";
 import {
   createAppointment,
@@ -120,6 +122,26 @@ function formatWeekPeriod(
   )} de ${formatMonthYear(dateValue)}`;
 }
 
+function getStatusSuccessMessage(
+  status: AppointmentStatus,
+): string {
+  const messages: Record<
+    AppointmentStatus,
+    string
+  > = {
+    Pendente:
+      "Consulta marcada como pendente.",
+    Confirmada:
+      "Consulta confirmada com sucesso.",
+    Concluída:
+      "Consulta concluída com sucesso.",
+    Cancelada:
+      "Consulta cancelada com sucesso.",
+  };
+
+  return messages[status];
+}
+
 export default function AgendaPage() {
   const [appointments, setAppointments] =
     useState<Appointment[]>([]);
@@ -132,10 +154,12 @@ export default function AgendaPage() {
 
   const [searchTerm, setSearchTerm] =
     useState("");
+
   const [
     professionalFilter,
     setProfessionalFilter,
   ] = useState("Todos");
+
   const [statusFilter, setStatusFilter] =
     useState<"Todos" | AppointmentStatus>(
       "Todos",
@@ -143,12 +167,23 @@ export default function AgendaPage() {
 
   const [isLoading, setIsLoading] =
     useState(true);
+
   const [isFormOpen, setIsFormOpen] =
     useState(false);
+
   const [
     selectedAppointment,
     setSelectedAppointment,
   ] = useState<Appointment | null>(null);
+
+  const [
+    appointmentToDelete,
+    setAppointmentToDelete,
+  ] = useState<Appointment | null>(null);
+
+  const [isDeleting, setIsDeleting] =
+    useState(false);
+
   const [pageError, setPageError] =
     useState("");
 
@@ -168,11 +203,13 @@ export default function AgendaPage() {
       setAppointments(loadedAppointments);
       setPatients(loadedPatients);
     } catch (error) {
-      setPageError(
+      const message =
         error instanceof Error
           ? error.message
-          : "Não foi possível carregar a agenda.",
-      );
+          : "Não foi possível carregar a agenda.";
+
+      setPageError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -286,18 +323,51 @@ export default function AgendaPage() {
   async function handleFormSubmit(
     input: CreateAppointmentInput,
   ) {
-    if (selectedAppointment) {
-      await updateAppointment(
-        selectedAppointment.id,
-        input,
-      );
-    } else {
-      await createAppointment(input);
-    }
+    try {
+      setPageError("");
 
-    setSelectedDate(input.date);
-    closeForm();
-    await loadData();
+      if (selectedAppointment) {
+        await updateAppointment(
+          selectedAppointment.id,
+          input,
+        );
+
+        toast.success(
+          "Consulta atualizada com sucesso.",
+          {
+            description: `${input.patient} — ${input.date} às ${input.time}`,
+          },
+        );
+      } else {
+        await createAppointment(input);
+
+        toast.success(
+          "Consulta criada com sucesso.",
+          {
+            description: `${input.patient} — ${input.date} às ${input.time}`,
+          },
+        );
+      }
+
+      setSelectedDate(input.date);
+      closeForm();
+      await loadData();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar a consulta.";
+
+      setPageError(message);
+      toast.error(
+        "Não foi possível salvar a consulta.",
+        {
+          description: message,
+        },
+      );
+
+      throw error;
+    }
   }
 
   async function handleStatusChange(
@@ -323,46 +393,88 @@ export default function AgendaPage() {
         },
       );
 
+      toast.success(
+        getStatusSuccessMessage(status),
+        {
+          description: appointment.patient,
+        },
+      );
+
       await loadData();
     } catch (error) {
-      setPageError(
+      const message =
         error instanceof Error
           ? error.message
-          : "Não foi possível atualizar a consulta.",
+          : "Não foi possível atualizar a consulta.";
+
+      setPageError(message);
+
+      toast.error(
+        "Não foi possível atualizar o status.",
+        {
+          description: message,
+        },
       );
     }
   }
 
-  async function handleDelete(
+  function requestDelete(
     appointment: Appointment,
   ) {
-    const shouldDelete =
-      window.confirm(
-        `Deseja realmente excluir a consulta de ${appointment.patient}?`,
-      );
+    setAppointmentToDelete(appointment);
+  }
 
-    if (!shouldDelete) {
+  function closeDeleteDialog() {
+    if (isDeleting) {
+      return;
+    }
+
+    setAppointmentToDelete(null);
+  }
+
+  async function confirmDelete() {
+    if (!appointmentToDelete) {
       return;
     }
 
     try {
+      setIsDeleting(true);
       setPageError("");
+
       await deleteAppointment(
-        appointment.id,
+        appointmentToDelete.id,
       );
+
+      toast.success(
+        "Consulta excluída com sucesso.",
+        {
+          description:
+            appointmentToDelete.patient,
+        },
+      );
+
+      setAppointmentToDelete(null);
       await loadData();
     } catch (error) {
-      setPageError(
+      const message =
         error instanceof Error
           ? error.message
-          : "Não foi possível excluir a consulta.",
+          : "Não foi possível excluir a consulta.";
+
+      setPageError(message);
+
+      toast.error(
+        "Não foi possível excluir a consulta.",
+        {
+          description: message,
+        },
       );
+    } finally {
+      setIsDeleting(false);
     }
   }
 
-  function changeWeek(
-    numberOfDays: number,
-  ) {
+  function changeWeek(numberOfDays: number) {
     const date =
       createDateFromValue(selectedDate);
 
@@ -417,7 +529,7 @@ export default function AgendaPage() {
                   onClick={() =>
                     changeWeek(-7)
                   }
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border hover:bg-muted"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border transition hover:bg-muted"
                   aria-label="Semana anterior"
                 >
                   <ChevronLeft size={18} />
@@ -442,7 +554,7 @@ export default function AgendaPage() {
                   onClick={() =>
                     changeWeek(7)
                   }
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border hover:bg-muted"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border transition hover:bg-muted"
                   aria-label="Próxima semana"
                 >
                   <ChevronRight size={18} />
@@ -453,7 +565,7 @@ export default function AgendaPage() {
                 <button
                   type="button"
                   onClick={goToToday}
-                  className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-muted"
+                  className="rounded-xl border px-4 py-2 text-sm font-medium transition hover:bg-muted"
                 >
                   Hoje
                 </button>
@@ -473,13 +585,10 @@ export default function AgendaPage() {
                   key={item.date}
                   type="button"
                   onClick={() =>
-                    setSelectedDate(
-                      item.date,
-                    )
+                    setSelectedDate(item.date)
                   }
                   className={`rounded-2xl border p-3 text-center transition ${
-                    item.date ===
-                    selectedDate
+                    item.date === selectedDate
                       ? "border-blue-600 bg-blue-600 text-white"
                       : "hover:bg-muted"
                   }`}
@@ -527,7 +636,7 @@ export default function AgendaPage() {
                     <button
                       type="button"
                       onClick={openCreateForm}
-                      className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                      className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
                     >
                       Nova consulta
                     </button>
@@ -538,17 +647,9 @@ export default function AgendaPage() {
                   (appointment) => (
                     <AppointmentCard
                       key={appointment.id}
-                      appointment={
-                        appointment
-                      }
-                      onEdit={
-                        openEditForm
-                      }
-                      onDelete={(item) =>
-                        void handleDelete(
-                          item,
-                        )
-                      }
+                      appointment={appointment}
+                      onEdit={openEditForm}
+                      onDelete={requestDelete}
                       onStatusChange={
                         handleStatusChange
                       }
@@ -566,27 +667,19 @@ export default function AgendaPage() {
                 professionalFilter
               }
               statusFilter={statusFilter}
-              professionals={
-                professionals
-              }
-              onSearchChange={
-                setSearchTerm
-              }
+              professionals={professionals}
+              onSearchChange={setSearchTerm}
               onProfessionalChange={
                 setProfessionalFilter
               }
               onStatusChange={
                 setStatusFilter
               }
-              onClearFilters={
-                clearFilters
-              }
+              onClearFilters={clearFilters}
             />
 
             <ScheduleSummary
-              appointments={
-                dayAppointments
-              }
+              appointments={dayAppointments}
             />
           </aside>
         </div>
@@ -595,12 +688,24 @@ export default function AgendaPage() {
       <AppointmentFormModal
         isOpen={isFormOpen}
         patients={patients}
-        appointment={
-          selectedAppointment
-        }
+        appointment={selectedAppointment}
         initialDate={selectedDate}
         onClose={closeForm}
         onSubmit={handleFormSubmit}
+      />
+
+      <ConfirmationDialog
+        isOpen={appointmentToDelete !== null}
+        title="Excluir consulta?"
+        description={
+          appointmentToDelete
+            ? `A consulta de ${appointmentToDelete.patient}, marcada para ${appointmentToDelete.date} às ${appointmentToDelete.time}, será excluída permanentemente. Essa ação não poderá ser desfeita.`
+            : ""
+        }
+        confirmLabel="Excluir consulta"
+        isLoading={isDeleting}
+        onConfirm={confirmDelete}
+        onClose={closeDeleteDialog}
       />
     </DashboardLayout>
   );
