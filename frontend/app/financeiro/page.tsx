@@ -25,6 +25,10 @@ import {
   useState,
 } from "react";
 
+import { toast } from "sonner";
+
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import {
   createFinancialTransaction,
@@ -144,8 +148,15 @@ export default function FinancialPage() {
   const [isSaving, setIsSaving] =
     useState(false);
 
-  const [deletingId, setDeletingId] =
-    useState<string | null>(null);
+  const [
+  transactionToDelete,
+  setTransactionToDelete,
+] = useState<FinancialTransaction | null>(
+  null,
+);
+
+const [isDeleting, setIsDeleting] =
+  useState(false);
 
   const [formError, setFormError] =
     useState("");
@@ -175,27 +186,39 @@ export default function FinancialPage() {
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
-    async function loadPageData(): Promise<void> {
-      try {
-        setIsLoading(true);
+  async function loadPageData(): Promise<void> {
+    try {
+      setIsLoading(true);
 
-        const [
-          storedTransactions,
-          storedPatients,
-        ] = await Promise.all([
-          getFinancialTransactions(),
-          getPatients(),
-        ]);
+      const [
+        storedTransactions,
+        storedPatients,
+      ] = await Promise.all([
+        getFinancialTransactions(),
+        getPatients(),
+      ]);
 
-        setTransactions(storedTransactions);
-        setPatients(storedPatients);
-      } finally {
-        setIsLoading(false);
-      }
+      setTransactions(storedTransactions);
+      setPatients(storedPatients);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível carregar os dados financeiros.";
+
+      toast.error(
+        "Erro ao carregar o financeiro.",
+        {
+          description: message,
+        },
+      );
+    } finally {
+      setIsLoading(false);
     }
+  }
 
-    void loadPageData();
-  }, []);
+  void loadPageData();
+}, []);
 
   const filteredTransactions = useMemo(() => {
     const normalizedSearch =
@@ -301,128 +324,183 @@ export default function FinancialPage() {
   }
 
   async function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ): Promise<void> {
-    event.preventDefault();
+  event: FormEvent<HTMLFormElement>,
+): Promise<void> {
+  event.preventDefault();
 
-    try {
-      setIsSaving(true);
-      setFormError("");
+  try {
+    setIsSaving(true);
+    setFormError("");
 
-      const patient = patients.find(
-        (item) => item.id === patientId,
-      );
-
-      if (!patient) {
-        throw new Error(
-          "Selecione um paciente.",
-        );
-      }
-
-      const numericAmount = Number(
-        amount.replace(",", "."),
-      );
-
-      const input: CreateFinancialTransactionInput =
-        {
-          patientId: patient.id,
-          patientName: patient.name,
-          description,
-          procedure,
-          amount: numericAmount,
-          dueDate,
-          paymentMethod,
-          status,
-          notes,
-        };
-
-      const newTransaction =
-        await createFinancialTransaction(input);
-
-      setTransactions((currentTransactions) => [
-        newTransaction,
-        ...currentTransactions,
-      ]);
-
-      closeForm();
-    } catch (error) {
-      setFormError(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível salvar o lançamento.",
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleStatusChange(
-    transaction: FinancialTransaction,
-    newStatus: FinancialTransactionStatus,
-  ): Promise<void> {
-    try {
-      const updatedTransaction =
-        await updateFinancialTransactionStatus(
-          transaction.id,
-          {
-            status: newStatus,
-            paymentMethod:
-              transaction.paymentMethod,
-          },
-        );
-
-      setTransactions(
-        (currentTransactions) =>
-          currentTransactions.map((item) =>
-            item.id === updatedTransaction.id
-              ? updatedTransaction
-              : item,
-          ),
-      );
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível alterar o status.",
-      );
-    }
-  }
-
-  async function handleDelete(
-    transaction: FinancialTransaction,
-  ): Promise<void> {
-    const shouldDelete = window.confirm(
-      `Deseja excluir o lançamento de ${transaction.patientName}?`,
+    const patient = patients.find(
+      (item) => item.id === patientId,
     );
 
-    if (!shouldDelete) {
-      return;
+    if (!patient) {
+      throw new Error(
+        "Selecione um paciente.",
+      );
     }
 
-    try {
-      setDeletingId(transaction.id);
+    const numericAmount = Number(
+      amount.replace(",", "."),
+    );
 
-      await deleteFinancialTransaction(
-        transaction.id,
-      );
+    const input: CreateFinancialTransactionInput =
+      {
+        patientId: patient.id,
+        patientName: patient.name,
+        description,
+        procedure,
+        amount: numericAmount,
+        dueDate,
+        paymentMethod,
+        status,
+        notes,
+      };
 
-      setTransactions(
-        (currentTransactions) =>
-          currentTransactions.filter(
-            (item) =>
-              item.id !== transaction.id,
-          ),
-      );
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível excluir o lançamento.",
-      );
-    } finally {
-      setDeletingId(null);
-    }
+    const newTransaction =
+      await createFinancialTransaction(input);
+
+    setTransactions((currentTransactions) => [
+      newTransaction,
+      ...currentTransactions,
+    ]);
+
+    setIsFormOpen(false);
+    resetForm();
+
+    toast.success(
+      "Lançamento criado com sucesso.",
+      {
+        description: `${patient.name} — ${formatCurrency(
+          numericAmount,
+        )}`,
+      },
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Não foi possível salvar o lançamento.";
+
+    setFormError(message);
+
+    toast.error(
+      "Não foi possível salvar o lançamento.",
+      {
+        description: message,
+      },
+    );
+  } finally {
+    setIsSaving(false);
   }
+}
+
+  async function handleStatusChange(
+  transaction: FinancialTransaction,
+  newStatus: FinancialTransactionStatus,
+): Promise<void> {
+  try {
+    const updatedTransaction =
+      await updateFinancialTransactionStatus(
+        transaction.id,
+        {
+          status: newStatus,
+          paymentMethod:
+            transaction.paymentMethod,
+        },
+      );
+
+    setTransactions(
+      (currentTransactions) =>
+        currentTransactions.map((item) =>
+          item.id === updatedTransaction.id
+            ? updatedTransaction
+            : item,
+        ),
+    );
+
+    toast.success(
+      "Status atualizado com sucesso.",
+      {
+        description: `${transaction.patientName} — ${newStatus}`,
+      },
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Não foi possível alterar o status.";
+
+    toast.error(
+      "Não foi possível atualizar o status.",
+      {
+        description: message,
+      },
+    );
+  }
+}
+
+ function requestDelete(
+  transaction: FinancialTransaction,
+): void {
+  setTransactionToDelete(transaction);
+}
+
+function closeDeleteDialog(): void {
+  if (isDeleting) {
+    return;
+  }
+
+  setTransactionToDelete(null);
+}
+
+async function confirmDelete(): Promise<void> {
+  if (!transactionToDelete) {
+    return;
+  }
+
+  try {
+    setIsDeleting(true);
+
+    await deleteFinancialTransaction(
+      transactionToDelete.id,
+    );
+
+    setTransactions(
+      (currentTransactions) =>
+        currentTransactions.filter(
+          (item) =>
+            item.id !== transactionToDelete.id,
+        ),
+    );
+
+    toast.success(
+      "Lançamento excluído com sucesso.",
+      {
+        description:
+          transactionToDelete.patientName,
+      },
+    );
+
+    setTransactionToDelete(null);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Não foi possível excluir o lançamento.";
+
+    toast.error(
+      "Não foi possível excluir o lançamento.",
+      {
+        description: message,
+      },
+    );
+  } finally {
+    setIsDeleting(false);
+  }
+}
 
   return (
     <DashboardLayout>
@@ -682,9 +760,6 @@ export default function FinancialPage() {
                         transaction.paymentMethod,
                       );
 
-                    const isDeleting =
-                      deletingId === transaction.id;
-
                     return (
                       <tr
                         key={transaction.id}
@@ -810,19 +885,17 @@ export default function FinancialPage() {
 
                         <td className="px-5 py-4">
                           <div className="flex justify-end">
-                            <button
-                              type="button"
-                              disabled={isDeleting}
-                              onClick={() =>
-                                void handleDelete(
-                                  transaction,
-                                )
-                              }
-                              title="Excluir lançamento"
-                              className="flex h-9 w-9 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950"
-                            >
-                              <Trash2 size={17} />
-                            </button>
+                          <button
+  type="button"
+  disabled={isDeleting}
+  onClick={() =>
+    requestDelete(transaction)
+  }
+  title="Excluir lançamento"
+  className="flex h-9 w-9 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950"
+>
+  <Trash2 size={17} />
+</button>
                           </div>
                         </td>
                       </tr>
@@ -835,7 +908,7 @@ export default function FinancialPage() {
         )}
       </section>
 
-      {isFormOpen && (
+                  {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <button
             type="button"
@@ -852,8 +925,7 @@ export default function FinancialPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Registre uma cobrança ou
-                  pagamento.
+                  Registre uma cobrança ou pagamento.
                 </p>
               </div>
 
@@ -916,9 +988,7 @@ export default function FinancialPage() {
                     required
                     value={description}
                     onChange={(event) =>
-                      setDescription(
-                        event.target.value,
-                      )
+                      setDescription(event.target.value)
                     }
                     placeholder="Ex.: Consulta odontológica"
                     className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -934,9 +1004,7 @@ export default function FinancialPage() {
                     required
                     value={procedure}
                     onChange={(event) =>
-                      setProcedure(
-                        event.target.value,
-                      )
+                      setProcedure(event.target.value)
                     }
                     placeholder="Ex.: Avaliação"
                     className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -1079,6 +1147,22 @@ export default function FinancialPage() {
           </section>
         </div>
       )}
+
+      <ConfirmationDialog
+        isOpen={transactionToDelete !== null}
+        title="Excluir lançamento financeiro?"
+        description={
+          transactionToDelete
+            ? `O lançamento de ${transactionToDelete.patientName}, no valor de ${formatCurrency(
+                transactionToDelete.amount,
+              )}, será excluído permanentemente. Essa ação não poderá ser desfeita.`
+            : ""
+        }
+        confirmLabel="Excluir lançamento"
+        isLoading={isDeleting}
+        onConfirm={confirmDelete}
+        onClose={closeDeleteDialog}
+      />
     </DashboardLayout>
   );
 }
