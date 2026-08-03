@@ -8,8 +8,11 @@ import {
   FileText,
   Files,
   FolderOpen,
+  Pencil,
+  Printer,
   Search,
   Stethoscope,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -20,25 +23,68 @@ import {
 } from "react";
 import { toast } from "sonner";
 
+import { openDocumentForPrint } from "@/services/document-print.service";
+import {
+  deleteGeneratedDocument,
+  getGeneratedDocuments,
+} from "@/services/generated-document.service";
 import {
   getAllMedicalDocuments,
 } from "@/services/medical-document.service";
 import { getPatients } from "@/services/patient.service";
+import {
+  documentTemplateCategoryOptions,
+  type DocumentTemplateCategory,
+} from "@/types/document-template";
+import type { GeneratedDocument } from "@/types/generated-document";
 import {
   medicalDocumentTypeOptions,
   type MedicalDocument,
   type MedicalDocumentType,
 } from "@/types/medical-document";
 import type { Patient } from "@/types/patient";
+import {
+  clinicConfig,
+  professionalConfig,
+} from "@/config/clinic";
 
 type DocumentFilter =
   | "all"
-  | MedicalDocumentType;
+  | "generated"
+  | "attached"
+  | `medical:${MedicalDocumentType}`
+  | `generated:${DocumentTemplateCategory}`;
 
-interface DocumentWithPatient
+interface MedicalDocumentWithPatient
   extends MedicalDocument {
   patientName: string;
 }
+
+type UnifiedDocument =
+  | {
+      kind: "medical";
+      id: string;
+      patientId: string;
+      patientName: string;
+      title: string;
+      subtitle: string;
+      professional: string;
+      createdAt: string;
+      searchContent: string;
+      medicalDocument: MedicalDocumentWithPatient;
+    }
+  | {
+      kind: "generated";
+      id: string;
+      patientId: string;
+      patientName: string;
+      title: string;
+      subtitle: string;
+      professional: string;
+      createdAt: string;
+      searchContent: string;
+      generatedDocument: GeneratedDocument;
+    };
 
 function formatFileSize(size: number): string {
   if (size < 1024) {
@@ -49,10 +95,7 @@ function formatFileSize(size: number): string {
     return `${(size / 1024).toFixed(1)} KB`;
   }
 
-  return `${(
-    size /
-    (1024 * 1024)
-  ).toFixed(1)} MB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatDate(date: string): string {
@@ -68,12 +111,22 @@ function formatDate(date: string): string {
   }).format(parsedDate);
 }
 
-function getDocumentTypeLabel(
+function getMedicalDocumentTypeLabel(
   type: MedicalDocumentType,
 ): string {
   return (
     medicalDocumentTypeOptions.find(
       (option) => option.value === type,
+    )?.label ?? "Outro documento"
+  );
+}
+
+function getGeneratedDocumentCategoryLabel(
+  category: DocumentTemplateCategory,
+): string {
+  return (
+    documentTemplateCategoryOptions.find(
+      (option) => option.value === category,
     )?.label ?? "Outro documento"
   );
 }
@@ -135,8 +188,15 @@ function escapeHtml(value: string): string {
 }
 
 export default function DocumentsPage() {
-  const [documents, setDocuments] =
-    useState<MedicalDocument[]>([]);
+  const [
+    medicalDocuments,
+    setMedicalDocuments,
+  ] = useState<MedicalDocument[]>([]);
+
+  const [
+    generatedDocuments,
+    setGeneratedDocuments,
+  ] = useState<GeneratedDocument[]>([]);
 
   const [patients, setPatients] = useState<
     Patient[]
@@ -151,20 +211,34 @@ export default function DocumentsPage() {
   const [isLoading, setIsLoading] =
     useState(true);
 
+  const [
+    deletingGeneratedDocumentId,
+    setDeletingGeneratedDocumentId,
+  ] = useState<string | null>(null);
+
   useEffect(() => {
     async function loadDocuments(): Promise<void> {
       try {
         setIsLoading(true);
 
         const [
-          storedDocuments,
+          storedMedicalDocuments,
+          storedGeneratedDocuments,
           storedPatients,
         ] = await Promise.all([
           getAllMedicalDocuments(),
+          getGeneratedDocuments(),
           getPatients(),
         ]);
 
-        setDocuments(storedDocuments);
+        setMedicalDocuments(
+          storedMedicalDocuments,
+        );
+
+        setGeneratedDocuments(
+          storedGeneratedDocuments,
+        );
+
         setPatients(storedPatients);
       } catch (error) {
         const message =
@@ -186,22 +260,96 @@ export default function DocumentsPage() {
     void loadDocuments();
   }, []);
 
-  const documentsWithPatients =
-    useMemo<DocumentWithPatient[]>(() => {
-      return documents.map((document) => {
-        const patient = patients.find(
-          (item) =>
-            item.id === document.patientId,
+  const medicalDocumentsWithPatients =
+    useMemo<MedicalDocumentWithPatient[]>(
+      () => {
+        return medicalDocuments.map(
+          (document) => {
+            const patient = patients.find(
+              (item) =>
+                item.id === document.patientId,
+            );
+
+            return {
+              ...document,
+              patientName:
+                patient?.name ??
+                "Paciente não encontrado",
+            };
+          },
+        );
+      },
+      [medicalDocuments, patients],
+    );
+
+  const unifiedDocuments =
+    useMemo<UnifiedDocument[]>(() => {
+      const attachedDocuments: UnifiedDocument[] =
+        medicalDocumentsWithPatients.map(
+          (document) => ({
+            kind: "medical",
+            id: document.id,
+            patientId: document.patientId,
+            patientName: document.patientName,
+            title: document.name,
+            subtitle: document.fileName,
+            professional: document.professional,
+            createdAt: document.createdAt,
+            searchContent: [
+              document.name,
+              document.fileName,
+              document.description ?? "",
+              document.professional,
+              document.patientName,
+              getMedicalDocumentTypeLabel(
+                document.type,
+              ),
+            ]
+              .join(" ")
+              .toLocaleLowerCase("pt-BR"),
+            medicalDocument: document,
+          }),
         );
 
-        return {
-          ...document,
-          patientName:
-            patient?.name ??
-            "Paciente não encontrado",
-        };
-      });
-    }, [documents, patients]);
+      const createdDocuments: UnifiedDocument[] =
+        generatedDocuments.map(
+          (document) => ({
+            kind: "generated",
+            id: document.id,
+            patientId: document.patientId,
+            patientName: document.patientName,
+            title: document.title,
+            subtitle: document.templateName,
+            professional: document.professional,
+            createdAt: document.createdAt,
+            searchContent: [
+              document.title,
+              document.templateName,
+              document.content,
+              document.professional,
+              document.patientName,
+              getGeneratedDocumentCategoryLabel(
+                document.category,
+              ),
+            ]
+              .join(" ")
+              .toLocaleLowerCase("pt-BR"),
+            generatedDocument: document,
+          }),
+        );
+
+      return [
+        ...attachedDocuments,
+        ...createdDocuments,
+      ].sort(
+        (first, second) =>
+          new Date(second.createdAt).getTime() -
+          new Date(first.createdAt).getTime(),
+      );
+    }, [
+      generatedDocuments,
+      medicalDocumentsWithPatients,
+    ]);
 
   const filteredDocuments = useMemo(() => {
     const normalizedSearch =
@@ -209,28 +357,47 @@ export default function DocumentsPage() {
         .trim()
         .toLocaleLowerCase("pt-BR");
 
-    return documentsWithPatients.filter(
+    return unifiedDocuments.filter(
       (document) => {
-        const matchesType =
-          selectedType === "all" ||
-          document.type === selectedType;
+        let matchesType = false;
 
-        const searchableContent = [
-          document.name,
-          document.fileName,
-          document.description ?? "",
-          document.professional,
-          document.patientName,
-          getDocumentTypeLabel(
-            document.type,
-          ),
-        ]
-          .join(" ")
-          .toLocaleLowerCase("pt-BR");
+        if (selectedType === "all") {
+          matchesType = true;
+        } else if (
+          selectedType === "generated"
+        ) {
+          matchesType =
+            document.kind === "generated";
+        } else if (
+          selectedType === "attached"
+        ) {
+          matchesType =
+            document.kind === "medical";
+        } else if (
+          selectedType.startsWith("medical:")
+        ) {
+          matchesType =
+            document.kind === "medical" &&
+            document.medicalDocument.type ===
+              selectedType.replace(
+                "medical:",
+                "",
+              );
+        } else if (
+          selectedType.startsWith("generated:")
+        ) {
+          matchesType =
+            document.kind === "generated" &&
+            document.generatedDocument.category ===
+              selectedType.replace(
+                "generated:",
+                "",
+              );
+        }
 
         const matchesSearch =
           normalizedSearch.length === 0 ||
-          searchableContent.includes(
+          document.searchContent.includes(
             normalizedSearch,
           );
 
@@ -238,23 +405,23 @@ export default function DocumentsPage() {
       },
     );
   }, [
-    documentsWithPatients,
     searchTerm,
     selectedType,
+    unifiedDocuments,
   ]);
 
-  const imageCount = documents.filter(
+  const imageCount = medicalDocuments.filter(
     (document) =>
       document.mimeType.startsWith("image/"),
   ).length;
 
-  const pdfCount = documents.filter(
+  const pdfCount = medicalDocuments.filter(
     (document) =>
       document.mimeType ===
       "application/pdf",
   ).length;
 
-  function handleOpenDocument(
+  function handleOpenMedicalDocument(
     document: MedicalDocument,
   ): void {
     try {
@@ -298,12 +465,10 @@ export default function DocumentsPage() {
         <html lang="pt-BR">
           <head>
             <meta charset="UTF-8" />
-
             <meta
               name="viewport"
               content="width=device-width, initial-scale=1.0"
             />
-
             <title>${safeName}</title>
 
             <style>
@@ -435,7 +600,7 @@ export default function DocumentsPage() {
     }
   }
 
-  function handleDownloadDocument(
+  function handleDownloadMedicalDocument(
     document: MedicalDocument,
   ): void {
     try {
@@ -476,12 +641,91 @@ export default function DocumentsPage() {
     }
   }
 
+  function handleOpenGeneratedDocument(
+    document: GeneratedDocument,
+  ): void {
+    try {
+      openDocumentForPrint({
+        title: document.title,
+        content: document.content,
+        patientName: document.patientName,
+        professionalName:
+          document.professional,
+       professionalCro:
+  professionalConfig.cro,
+clinicName:
+  clinicConfig.name,
+clinicCity:
+  clinicConfig.city,
+clinicState:
+  clinicConfig.state,
+      });
+    } catch (error) {
+      toast.error(
+        "Não foi possível abrir o documento.",
+        {
+          description:
+            error instanceof Error
+              ? error.message
+              : undefined,
+        },
+      );
+    }
+  }
+
+  async function handleDeleteGeneratedDocument(
+    document: GeneratedDocument,
+  ): Promise<void> {
+    const shouldDelete = window.confirm(
+      `Deseja realmente excluir o documento "${document.title}"?`,
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      setDeletingGeneratedDocumentId(
+        document.id,
+      );
+
+      await deleteGeneratedDocument(
+        document.id,
+      );
+
+      setGeneratedDocuments(
+        (currentDocuments) =>
+          currentDocuments.filter(
+            (item) =>
+              item.id !== document.id,
+          ),
+      );
+
+      toast.success(
+        "Documento excluído com sucesso.",
+      );
+    } catch (error) {
+      toast.error(
+        "Não foi possível excluir o documento.",
+        {
+          description:
+            error instanceof Error
+              ? error.message
+              : undefined,
+        },
+      );
+    } finally {
+      setDeletingGeneratedDocumentId(null);
+    }
+  }
+
   if (isLoading) {
     return (
       <main className="space-y-6 p-6">
         <div className="h-24 animate-pulse rounded-2xl bg-muted" />
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="h-28 animate-pulse rounded-2xl bg-muted" />
           <div className="h-28 animate-pulse rounded-2xl bg-muted" />
           <div className="h-28 animate-pulse rounded-2xl bg-muted" />
           <div className="h-28 animate-pulse rounded-2xl bg-muted" />
@@ -506,22 +750,32 @@ export default function DocumentsPage() {
             </h1>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Consulte radiografias, exames,
-              laudos e termos dos pacientes.
+              Consulte arquivos anexados e documentos
+              gerados para os pacientes.
             </p>
           </div>
         </div>
 
-        <Link
-          href="/documentos/modelos"
-          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
-          <FilePenLine size={18} />
-          Gerenciar modelos
-        </Link>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link
+            href="/documentos/gerar"
+            className="flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition hover:bg-muted"
+          >
+            <FileText size={18} />
+            Gerar documento
+          </Link>
+
+          <Link
+            href="/documentos/modelos"
+            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            <FilePenLine size={18} />
+            Gerenciar modelos
+          </Link>
+        </div>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-2xl border bg-card p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -530,12 +784,30 @@ export default function DocumentsPage() {
               </p>
 
               <strong className="mt-2 block text-3xl">
-                {documents.length}
+                {unifiedDocuments.length}
               </strong>
             </div>
 
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
               <Files size={22} />
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-2xl border bg-card p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                Documentos gerados
+              </p>
+
+              <strong className="mt-2 block text-3xl">
+                {generatedDocuments.length}
+              </strong>
+            </div>
+
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+              <FileText size={22} />
             </div>
           </div>
         </article>
@@ -578,7 +850,7 @@ export default function DocumentsPage() {
       </section>
 
       <section className="rounded-2xl border bg-card p-5 shadow-sm">
-        <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
           <label className="relative block">
             <Search
               size={18}
@@ -593,7 +865,7 @@ export default function DocumentsPage() {
                   event.target.value,
                 )
               }
-              placeholder="Pesquisar documento, paciente ou profissional..."
+              placeholder="Pesquisar documento, paciente, conteúdo ou profissional..."
               className="h-11 w-full rounded-xl border bg-background pl-10 pr-4 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>
@@ -609,19 +881,42 @@ export default function DocumentsPage() {
             className="h-11 rounded-xl border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option value="all">
-              Todos os tipos
+              Todos os documentos
             </option>
 
-            {medicalDocumentTypeOptions.map(
-              (option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              ),
-            )}
+            <option value="generated">
+              Somente documentos gerados
+            </option>
+
+            <option value="attached">
+              Somente arquivos anexados
+            </option>
+
+            <optgroup label="Arquivos anexados">
+              {medicalDocumentTypeOptions.map(
+                (option) => (
+                  <option
+                    key={option.value}
+                    value={`medical:${option.value}`}
+                  >
+                    {option.label}
+                  </option>
+                ),
+              )}
+            </optgroup>
+
+            <optgroup label="Documentos gerados">
+              {documentTemplateCategoryOptions.map(
+                (option) => (
+                  <option
+                    key={option.value}
+                    value={`generated:${option.value}`}
+                  >
+                    {option.label}
+                  </option>
+                ),
+              )}
+            </optgroup>
           </select>
         </div>
 
@@ -647,8 +942,8 @@ export default function DocumentsPage() {
           </h2>
 
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-            Ajuste os filtros ou adicione um
-            documento pelo prontuário de um
+            Ajuste os filtros, gere um documento ou
+            adicione um arquivo pelo prontuário do
             paciente.
           </p>
         </section>
@@ -656,29 +951,185 @@ export default function DocumentsPage() {
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filteredDocuments.map(
             (document) => {
+              if (
+                document.kind === "generated"
+              ) {
+                const generated =
+                  document.generatedDocument;
+
+                const isDeleting =
+                  deletingGeneratedDocumentId ===
+                  generated.id;
+
+                return (
+                  <article
+                    key={`generated-${generated.id}`}
+                    className="overflow-hidden rounded-2xl border bg-card shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleOpenGeneratedDocument(
+                          generated,
+                        )
+                      }
+                      className="flex h-44 w-full items-center justify-center bg-gradient-to-br from-blue-50 to-violet-50 dark:from-blue-950/40 dark:to-violet-950/40"
+                    >
+                      <FileText
+                        size={58}
+                        className="text-blue-600"
+                      />
+                    </button>
+
+                    <div className="p-5">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                          <FileText size={19} />
+                        </div>
+
+                        <div className="min-w-0">
+                          <h2 className="truncate font-semibold">
+                            {generated.title}
+                          </h2>
+
+                          <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {generated.templateName}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <span className="inline-flex rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+                          {getGeneratedDocumentCategoryLabel(
+                            generated.category,
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="mt-5 space-y-2 border-t pt-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <UserRound
+                            size={15}
+                            className="shrink-0 text-muted-foreground"
+                          />
+
+                          <span className="truncate">
+                            {generated.patientName}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Stethoscope
+                            size={15}
+                            className="shrink-0 text-muted-foreground"
+                          />
+
+                          <span className="truncate">
+                            {generated.professional}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(
+                            generated.createdAt,
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="mt-5 grid grid-cols-[1fr_auto_auto_auto_auto] gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleOpenGeneratedDocument(
+                              generated,
+                            )
+                          }
+                          className="flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition hover:bg-muted"
+                        >
+                          <ExternalLink
+                            size={16}
+                          />
+                          Abrir
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleOpenGeneratedDocument(
+                              generated,
+                            )
+                          }
+                          title="Imprimir ou salvar como PDF"
+                          className="flex items-center justify-center rounded-xl border px-3 transition hover:bg-muted"
+                        >
+                          <Printer size={17} />
+                        </button>
+
+
+                        <Link
+                          href={`/documentos/gerar?documentId=${generated.id}`}
+                          title="Editar documento"
+                          className="flex items-center justify-center rounded-xl border px-3 transition hover:bg-muted"
+                        >
+                          <Pencil size={17} />
+                        </Link>
+
+                        <Link
+                          href={`/prontuarios/${generated.patientId}`}
+                          title="Abrir prontuário"
+                          className="flex items-center justify-center rounded-xl border px-3 transition hover:bg-muted"
+                        >
+                          <UserRound size={17} />
+                        </Link>
+
+                        <button
+                          type="button"
+                          disabled={isDeleting}
+                          onClick={() =>
+                            void handleDeleteGeneratedDocument(
+                              generated,
+                            )
+                          }
+                          title="Excluir documento"
+                          className="flex items-center justify-center rounded-xl border px-3 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950"
+                        >
+                          <Trash2
+                            size={17}
+                            className="text-red-600"
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              }
+
+              const attached =
+                document.medicalDocument;
+
               const isImage =
-                document.mimeType.startsWith(
+                attached.mimeType.startsWith(
                   "image/",
                 );
 
               return (
                 <article
-                  key={document.id}
+                  key={`medical-${attached.id}`}
                   className="overflow-hidden rounded-2xl border bg-card shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <button
                     type="button"
                     onClick={() =>
-                      handleOpenDocument(
-                        document,
+                      handleOpenMedicalDocument(
+                        attached,
                       )
                     }
                     className="flex h-44 w-full items-center justify-center overflow-hidden bg-muted"
                   >
                     {isImage ? (
                       <img
-                        src={document.dataUrl}
-                        alt={document.name}
+                        src={attached.dataUrl}
+                        alt={attached.name}
                         className="h-full w-full object-cover transition duration-300 hover:scale-105"
                       />
                     ) : (
@@ -711,26 +1162,26 @@ export default function DocumentsPage() {
 
                       <div className="min-w-0">
                         <h2 className="truncate font-semibold">
-                          {document.name}
+                          {attached.name}
                         </h2>
 
                         <p className="mt-1 truncate text-xs text-muted-foreground">
-                          {document.fileName}
+                          {attached.fileName}
                         </p>
                       </div>
                     </div>
 
                     <div className="mt-4">
                       <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                        {getDocumentTypeLabel(
-                          document.type,
+                        {getMedicalDocumentTypeLabel(
+                          attached.type,
                         )}
                       </span>
                     </div>
 
-                    {document.description && (
+                    {attached.description && (
                       <p className="mt-4 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                        {document.description}
+                        {attached.description}
                       </p>
                     )}
 
@@ -742,9 +1193,7 @@ export default function DocumentsPage() {
                         />
 
                         <span className="truncate">
-                          {
-                            document.patientName
-                          }
+                          {attached.patientName}
                         </span>
                       </div>
 
@@ -755,19 +1204,17 @@ export default function DocumentsPage() {
                         />
 
                         <span className="truncate">
-                          {
-                            document.professional
-                          }
+                          {attached.professional}
                         </span>
                       </div>
 
                       <p className="text-xs text-muted-foreground">
                         {formatFileSize(
-                          document.size,
+                          attached.size,
                         )}{" "}
                         •{" "}
                         {formatDate(
-                          document.createdAt,
+                          attached.createdAt,
                         )}
                       </p>
                     </div>
@@ -776,8 +1223,8 @@ export default function DocumentsPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          handleOpenDocument(
-                            document,
+                          handleOpenMedicalDocument(
+                            attached,
                           )
                         }
                         className="flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition hover:bg-muted"
@@ -791,8 +1238,8 @@ export default function DocumentsPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          handleDownloadDocument(
-                            document,
+                          handleDownloadMedicalDocument(
+                            attached,
                           )
                         }
                         title="Baixar documento"
@@ -802,7 +1249,7 @@ export default function DocumentsPage() {
                       </button>
 
                       <Link
-                        href={`/prontuarios/${document.patientId}`}
+                        href={`/prontuarios/${attached.patientId}`}
                         title="Abrir prontuário"
                         className="flex items-center justify-center rounded-xl border px-3 transition hover:bg-muted"
                       >

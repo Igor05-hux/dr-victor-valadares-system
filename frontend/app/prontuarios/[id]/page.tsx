@@ -25,6 +25,7 @@ import { ClinicalTimeline } from "@/components/medical-record/clinical-timeline"
 import { buildTimelineEvents } from "@/services/timeline.service";
 import { MedicalDocumentForm } from "@/components/medical-record/medical-document-form";
 import { MedicalDocuments } from "@/components/medical-record/medical-documents";
+import { GeneratedDocuments } from "@/components/medical-record/generated-documents";
 
 export default function MedicalRecordPage() {
   const params = useParams<{ id: string }>();
@@ -43,6 +44,7 @@ const {
   teeth,
   toothHistory,
   documents,
+  generatedDocuments,
   isLoading,
   handleHistoryItemCreated,
   handleEvolutionCreated,
@@ -50,6 +52,7 @@ const {
   handleToothUpdate,
   handleDocumentCreated,
   handleDocumentDeleted,
+  handleGeneratedDocumentDeleted,
 } = useMedicalRecord({
   patientId: params.id,
   onPatientNotFound: handlePatientNotFound,
@@ -62,8 +65,7 @@ const {
     )
   : [];
 
-  console.log("medicalRecord", medicalRecord);
-  console.log("timelineEvents", timelineEvents);
+  
 
   return (
     <DashboardLayout>
@@ -154,16 +156,37 @@ const {
 )}
 
 {activeTab === "documents" && (
-  <div className="space-y-6">
-    <MedicalDocumentForm
+  <div className="space-y-8">
+    <GeneratedDocuments
       patientId={patient.id}
-      onSave={handleDocumentCreated}
+      documents={generatedDocuments}
+      onDelete={handleGeneratedDocumentDeleted}
     />
 
-    <MedicalDocuments
-      documents={documents}
-      onDelete={handleDocumentDeleted}
-    />
+    <div className="border-t pt-8">
+      <div className="mb-5">
+        <h2 className="text-lg font-bold">
+          Arquivos anexados
+        </h2>
+
+        <p className="text-sm text-muted-foreground">
+          Radiografias, exames, laudos, imagens e PDFs
+          enviados ao prontuário.
+        </p>
+      </div>
+
+      <div className="space-y-6">
+        <MedicalDocumentForm
+          patientId={patient.id}
+          onSave={handleDocumentCreated}
+        />
+
+        <MedicalDocuments
+          documents={documents}
+          onDelete={handleDocumentDeleted}
+        />
+      </div>
+    </div>
   </div>
 )}
 

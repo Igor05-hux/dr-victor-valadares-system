@@ -59,7 +59,6 @@ export function openDocumentForPrint(
   const printWindow = window.open(
     "",
     "_blank",
-    "noopener,noreferrer",
   );
 
   if (!printWindow) {
@@ -345,4 +344,5 @@ export function openDocumentForPrint(
   `);
 
   printWindow.document.close();
+  printWindow.focus();
 }

@@ -8,6 +8,10 @@ import {
 import { toast } from "sonner";
 
 import {
+  deleteGeneratedDocument,
+  getGeneratedDocumentsByPatientId,
+} from "@/services/generated-document.service";
+import {
   addMedicalDocument,
   deleteMedicalDocument,
   getMedicalDocumentsByPatientId,
@@ -22,6 +26,7 @@ import {
 } from "@/services/odontogram.service";
 import { getPatientById } from "@/services/patient.service";
 
+import type { GeneratedDocument } from "@/types/generated-document";
 import type {
   CreateMedicalDocumentInput,
   MedicalDocument,
@@ -37,6 +42,9 @@ import type {
   ToothHistoryEntry,
 } from "@/types/odontogram";
 import type { Patient } from "@/types/patient";
+import {
+  professionalConfig,
+} from "@/config/clinic";
 
 type MedicalHistoryCategory =
   | "allergies"
@@ -67,7 +75,13 @@ export function useMedicalRecord({
     MedicalDocument[]
   >([]);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [
+    generatedDocuments,
+    setGeneratedDocuments,
+  ] = useState<GeneratedDocument[]>([]);
+
+  const [isLoading, setIsLoading] =
+    useState(true);
 
   const loadMedicalRecord = useCallback(
     async () => {
@@ -83,11 +97,13 @@ export function useMedicalRecord({
           recordData,
           odontogramData,
           documentData,
+          generatedDocumentData,
         ] = await Promise.all([
           getPatientById(patientId),
           getMedicalRecordByPatientId(patientId),
           getOdontogramByPatientId(patientId),
           getMedicalDocumentsByPatientId(patientId),
+          getGeneratedDocumentsByPatientId(patientId),
         ]);
 
         if (!patientData) {
@@ -103,6 +119,9 @@ export function useMedicalRecord({
           odontogramData.history ?? [],
         );
         setDocuments(documentData);
+        setGeneratedDocuments(
+          generatedDocumentData,
+        );
       } catch {
         toast.error(
           "Não foi possível carregar o prontuário.",
@@ -169,7 +188,8 @@ export function useMedicalRecord({
           date: new Date()
             .toISOString()
             .slice(0, 10),
-          professional: "Dr. Victor Valadares",
+          professional:
+              professionalConfig.name,
           items,
           observations:
             observations.trim() || undefined,
@@ -189,7 +209,9 @@ export function useMedicalRecord({
         };
       });
 
-      toast.success("Receita salva com sucesso.");
+      toast.success(
+        "Receita salva com sucesso.",
+      );
     } catch {
       toast.error(
         "Não foi possível salvar a receita.",
@@ -256,7 +278,9 @@ export function useMedicalRecord({
     documentId: string,
   ): Promise<void> {
     try {
-      await deleteMedicalDocument(documentId);
+      await deleteMedicalDocument(
+        documentId,
+      );
 
       setDocuments((currentDocuments) =>
         currentDocuments.filter(
@@ -279,20 +303,53 @@ export function useMedicalRecord({
     }
   }
 
+  async function handleGeneratedDocumentDeleted(
+    documentId: string,
+  ): Promise<void> {
+    try {
+      await deleteGeneratedDocument(
+        documentId,
+      );
+
+      setGeneratedDocuments(
+        (currentDocuments) =>
+          currentDocuments.filter(
+            (document) =>
+              document.id !== documentId,
+          ),
+      );
+
+      toast.success(
+        "Documento gerado excluído com sucesso.",
+      );
+    } catch (caughtError) {
+      toast.error(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Não foi possível excluir o documento.",
+      );
+
+      throw caughtError;
+    }
+  }
+
   return {
     patient,
     medicalRecord,
     teeth,
     toothHistory,
     documents,
+    generatedDocuments,
     isLoading,
 
-    reloadMedicalRecord: loadMedicalRecord,
+    reloadMedicalRecord:
+      loadMedicalRecord,
     handleHistoryItemCreated,
     handleEvolutionCreated,
     handlePrescriptionCreated,
     handleToothUpdate,
     handleDocumentCreated,
     handleDocumentDeleted,
+    handleGeneratedDocumentDeleted,
   };
 }

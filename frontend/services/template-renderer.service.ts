@@ -1,4 +1,8 @@
 import type { Patient } from "@/types/patient";
+import {
+  clinicConfig,
+  professionalConfig,
+} from "@/config/clinic";
 
 export interface TemplateRenderValues {
   patient: Patient;
@@ -98,23 +102,25 @@ export function renderDocumentTemplate(
     },
     professional: {
       name:
-        values.professional?.name ??
-        "Dr. Victor Valadares",
-      cro:
-        values.professional?.cro ??
-        "74639",
+  values.professional?.name ??
+  professionalConfig.name,
+cro:
+  values.professional?.cro ??
+  professionalConfig.cro,
     },
     clinic: {
       name:
-        values.clinic?.name ??
-        "Clínica Dr. Victor Valadares",
-      cnpj: values.clinic?.cnpj ?? "",
-      city:
-        values.clinic?.city ??
-        "Pará de Minas",
-      state:
-        values.clinic?.state ??
-        "MG",
+  values.clinic?.name ??
+  clinicConfig.name,
+cnpj:
+  values.clinic?.cnpj ??
+  clinicConfig.cnpj,
+city:
+  values.clinic?.city ??
+  clinicConfig.city,
+state:
+  values.clinic?.state ??
+  clinicConfig.state,
     },
   };
 

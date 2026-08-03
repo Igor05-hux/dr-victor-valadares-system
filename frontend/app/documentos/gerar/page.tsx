@@ -10,6 +10,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   useEffect,
   useMemo,
@@ -18,7 +19,11 @@ import {
 import { toast } from "sonner";
 
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { createGeneratedDocument } from "@/services/generated-document.service";
+import {
+  createGeneratedDocument,
+  getGeneratedDocuments,
+  updateGeneratedDocument,
+} from "@/services/generated-document.service";
 import { openDocumentForPrint } from "@/services/document-print.service";
 import { getDocumentTemplates } from "@/services/document-template.service";
 import { getPatients } from "@/services/patient.service";
@@ -31,6 +36,10 @@ import {
   type DocumentTemplate,
 } from "@/types/document-template";
 import type { Patient } from "@/types/patient";
+import {
+  clinicConfig,
+  professionalConfig,
+} from "@/config/clinic";
 
 interface AdditionalFields {
   attendanceDate: string;
@@ -142,6 +151,17 @@ function getCategoryLabel(
 }
 
 export default function GenerateDocumentPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const documentId =
+    searchParams.get("documentId") ?? "";
+
+  const patientIdFromQuery =
+    searchParams.get("patientId") ?? "";
+
+  const isEditing = Boolean(documentId);
+
   const [patients, setPatients] = useState<
     Patient[]
   >([]);
@@ -182,18 +202,82 @@ export default function GenerateDocumentPage() {
         const [
           loadedPatients,
           loadedTemplates,
+          loadedGeneratedDocuments,
         ] = await Promise.all([
           getPatients(),
           getDocumentTemplates(),
+          getGeneratedDocuments(),
         ]);
 
-        setPatients(loadedPatients);
-
-        setTemplates(
+        const activeTemplates =
           loadedTemplates.filter(
             (template) => template.isActive,
-          ),
-        );
+          );
+
+        setPatients(loadedPatients);
+        setTemplates(activeTemplates);
+
+        if (documentId) {
+          const documentToEdit =
+            loadedGeneratedDocuments.find(
+              (document) =>
+                document.id === documentId,
+            );
+
+          if (!documentToEdit) {
+            toast.error(
+              "Documento não encontrado.",
+            );
+            router.push("/documentos");
+            return;
+          }
+
+          setPatientId(
+            documentToEdit.patientId,
+          );
+          setTemplateId(
+            documentToEdit.templateId,
+          );
+          setTitle(documentToEdit.title);
+          setGeneratedContent(
+            documentToEdit.content,
+          );
+          setAdditionalFields(
+            (currentFields) => ({
+              ...currentFields,
+              recipientName:
+                documentToEdit.patientName,
+            }),
+          );
+        } else if (patientIdFromQuery) {
+          const patientExists =
+            loadedPatients.some(
+              (patient) =>
+                patient.id ===
+                patientIdFromQuery,
+            );
+
+          if (patientExists) {
+            setPatientId(patientIdFromQuery);
+
+            const selectedPatient =
+              loadedPatients.find(
+                (patient) =>
+                  patient.id ===
+                  patientIdFromQuery,
+              );
+
+            setAdditionalFields(
+              (currentFields) => ({
+                ...currentFields,
+                recipientName:
+                  selectedPatient?.name ?? "",
+                recipientCpf:
+                  selectedPatient?.cpf ?? "",
+              }),
+            );
+          }
+        }
       } catch (error) {
         toast.error(
           "Não foi possível carregar o gerador.",
@@ -210,7 +294,11 @@ export default function GenerateDocumentPage() {
     }
 
     void loadPageData();
-  }, []);
+  }, [
+    documentId,
+    patientIdFromQuery,
+    router,
+  ]);
 
   const selectedPatient = useMemo(
     () =>
@@ -333,19 +421,18 @@ const usesGuardianFields =
         selectedTemplate.content,
         {
           patient: selectedPatient,
+professional: {
+  name: professionalConfig.name,
+  cro: professionalConfig.cro,
+},
 
-          professional: {
-            name: "Dr. Victor Valadares",
-            cro: "74639",
-          },
 
-          clinic: {
-            name:
-              "Clínica Dr. Victor Valadares",
-            cnpj: "",
-            city: "Pará de Minas",
-            state: "MG",
-          },
+         clinic: {
+  name: clinicConfig.name,
+  cnpj: clinicConfig.cnpj,
+  city: clinicConfig.city,
+  state: clinicConfig.state,
+},
 
           guardian: {
             name:
@@ -440,12 +527,15 @@ const usesGuardianFields =
         content: generatedContent,
         patientName: selectedPatient.name,
         professionalName:
-          "Dr. Victor Valadares",
-        professionalCro: "74639",
-        clinicName:
-          "Clínica Dr. Victor Valadares",
-        clinicCity: "Pará de Minas",
-        clinicState: "MG",
+  professionalConfig.name,
+professionalCro:
+  professionalConfig.cro,
+clinicName:
+  clinicConfig.name,
+clinicCity:
+  clinicConfig.city,
+clinicState:
+  clinicConfig.state,
       });
     } catch (error) {
       toast.error(
@@ -481,6 +571,29 @@ const usesGuardianFields =
     try {
       setIsSaving(true);
 
+      if (isEditing) {
+        await updateGeneratedDocument(
+          documentId,
+          {
+            title:
+              title.trim() ||
+              selectedTemplate.name,
+            content: generatedContent,
+          },
+        );
+
+        toast.success(
+          "Documento atualizado com sucesso.",
+          {
+            description:
+              selectedPatient.name,
+          },
+        );
+
+        router.push("/documentos");
+        return;
+      }
+
       await createGeneratedDocument({
         patientId: selectedPatient.id,
         patientName: selectedPatient.name,
@@ -495,7 +608,7 @@ const usesGuardianFields =
           selectedTemplate.name,
         content: generatedContent,
         professional:
-          "Dr. Victor Valadares",
+  professionalConfig.name,
       });
 
       toast.success(
@@ -540,12 +653,15 @@ const usesGuardianFields =
         <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold">
-              Gerar documento
+              {isEditing
+                ? "Editar documento"
+                : "Gerar documento"}
             </h1>
 
             <p className="text-sm text-muted-foreground">
-              Selecione um paciente e um modelo para
-              criar um documento personalizado.
+              {isEditing
+                ? "Altere o título ou o conteúdo do documento salvo."
+                : "Selecione um paciente e um modelo para criar um documento personalizado."}
             </p>
           </div>
 
@@ -583,12 +699,13 @@ const usesGuardianFields =
 
               <select
                 value={patientId}
+                disabled={isEditing}
                 onChange={(event) =>
                   handlePatientChange(
                     event.target.value,
                   )
                 }
-                className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-blue-600"
+                className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <option value="">
                   Selecione um paciente
@@ -639,12 +756,13 @@ const usesGuardianFields =
 
               <select
                 value={templateId}
+                disabled={isEditing}
                 onChange={(event) =>
                   handleTemplateChange(
                     event.target.value,
                   )
                 }
-                className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-blue-600"
+                className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none focus:border-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <option value="">
                   Selecione um modelo
@@ -1078,14 +1196,16 @@ const usesGuardianFields =
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={generatePreview}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-            >
-              <WandSparkles size={18} />
-              Gerar prévia
-            </button>
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={generatePreview}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                <WandSparkles size={18} />
+                Gerar prévia
+              </button>
+            )}
           </section>
 
           <section className="flex min-h-[760px] flex-col rounded-2xl border bg-card shadow-sm">
@@ -1096,7 +1216,9 @@ const usesGuardianFields =
                 </h2>
 
                 <p className="text-sm text-muted-foreground">
-                  Revise e altere o conteúdo antes de salvar.
+                  {isEditing
+                    ? "Edite o conteúdo e salve as alterações."
+                    : "Revise e altere o conteúdo antes de salvar."}
                 </p>
               </div>
 
@@ -1136,7 +1258,9 @@ const usesGuardianFields =
 
                   {isSaving
                     ? "Salvando..."
-                    : "Salvar"}
+                    : isEditing
+                      ? "Salvar alterações"
+                      : "Salvar"}
                 </button>
               </div>
             </header>
