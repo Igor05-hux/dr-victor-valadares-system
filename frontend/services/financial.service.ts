@@ -2,6 +2,7 @@ import type {
   CreateFinancialTransactionInput,
   FinancialTransaction,
   PaymentMethod,
+  UpdateFinancialTransactionInput,
   UpdateFinancialTransactionStatusInput,
 } from "@/types/financial";
 
@@ -87,7 +88,9 @@ function normalizeTransactionStatus(
     return transaction;
   }
 
-  const dueDate = new Date(`${transaction.dueDate}T23:59:59`);
+  const dueDate = new Date(
+    `${transaction.dueDate}T23:59:59`,
+  );
   const currentDate = new Date();
 
   if (dueDate.getTime() < currentDate.getTime()) {
@@ -98,6 +101,67 @@ function normalizeTransactionStatus(
   }
 
   return transaction;
+}
+
+function validateTransactionInput(
+  input:
+    | CreateFinancialTransactionInput
+    | UpdateFinancialTransactionInput,
+): void {
+  if (!input.patientId) {
+    throw new Error("Selecione um paciente.");
+  }
+
+  if (!input.description.trim()) {
+    throw new Error(
+      "Informe a descrição do lançamento.",
+    );
+  }
+
+  if (!input.procedure.trim()) {
+    throw new Error("Informe o procedimento.");
+  }
+
+  if (
+    !Number.isFinite(input.amount) ||
+    input.amount <= 0
+  ) {
+    throw new Error(
+      "Informe um valor financeiro válido.",
+    );
+  }
+
+  if (!input.dueDate) {
+    throw new Error(
+      "Informe a data de vencimento.",
+    );
+  }
+}
+
+function resolvePaymentData(
+  status: FinancialTransaction["status"],
+  paymentMethod: PaymentMethod,
+  currentPaymentDate?: string,
+): {
+  paymentMethod: PaymentMethod;
+  paymentDate?: string;
+} {
+  if (status !== "Pago") {
+    return {
+      paymentMethod,
+      paymentDate: undefined,
+    };
+  }
+
+  return {
+    paymentMethod:
+      paymentMethod === "Não definido"
+        ? "PIX"
+        : paymentMethod,
+    paymentDate:
+      currentPaymentDate ??
+      new Date().toISOString().slice(0, 10),
+  };
 }
 
 export async function getFinancialTransactions(): Promise<
@@ -112,7 +176,6 @@ export async function getFinancialTransactions(): Promise<
 
   if (!storedTransactions) {
     saveTransactions(defaultTransactions);
-
     return sortTransactions(defaultTransactions);
   }
 
@@ -123,19 +186,21 @@ export async function getFinancialTransactions(): Promise<
 
     if (!Array.isArray(parsedTransactions)) {
       saveTransactions(defaultTransactions);
-
       return sortTransactions(defaultTransactions);
     }
 
     const normalizedTransactions =
-      parsedTransactions.map(normalizeTransactionStatus);
+      parsedTransactions.map(
+        normalizeTransactionStatus,
+      );
 
     saveTransactions(normalizedTransactions);
 
-    return sortTransactions(normalizedTransactions);
+    return sortTransactions(
+      normalizedTransactions,
+    );
   } catch {
     saveTransactions(defaultTransactions);
-
     return sortTransactions(defaultTransactions);
   }
 }
@@ -149,32 +214,15 @@ export async function createFinancialTransaction(
     );
   }
 
-  if (!input.patientId) {
-    throw new Error("Selecione um paciente.");
-  }
-
-  if (!input.description.trim()) {
-    throw new Error("Informe a descrição do lançamento.");
-  }
-
-  if (!input.procedure.trim()) {
-    throw new Error("Informe o procedimento.");
-  }
-
-  if (!Number.isFinite(input.amount) || input.amount <= 0) {
-    throw new Error(
-      "Informe um valor financeiro válido.",
-    );
-  }
-
-  if (!input.dueDate) {
-    throw new Error("Informe a data de vencimento.");
-  }
+  validateTransactionInput(input);
 
   const transactions =
     await getFinancialTransactions();
 
-  const isPaid = input.status === "Pago";
+  const paymentData = resolvePaymentData(
+    input.status,
+    input.paymentMethod,
+  );
 
   const newTransaction: FinancialTransaction = {
     id: crypto.randomUUID(),
@@ -184,12 +232,8 @@ export async function createFinancialTransaction(
     procedure: input.procedure.trim(),
     amount: input.amount,
     dueDate: input.dueDate,
-    paymentDate: isPaid
-      ? new Date().toISOString().slice(0, 10)
-      : undefined,
-    paymentMethod: isPaid
-      ? input.paymentMethod
-      : input.paymentMethod ?? "Não definido",
+    paymentDate: paymentData.paymentDate,
+    paymentMethod: paymentData.paymentMethod,
     status: input.status,
     notes: input.notes?.trim() || undefined,
     createdAt: new Date().toISOString(),
@@ -201,6 +245,65 @@ export async function createFinancialTransaction(
   ]);
 
   return newTransaction;
+}
+
+export async function updateFinancialTransaction(
+  transactionId: string,
+  input: UpdateFinancialTransactionInput,
+): Promise<FinancialTransaction> {
+  if (!isBrowser()) {
+    throw new Error(
+      "O lançamento financeiro precisa ser editado no navegador.",
+    );
+  }
+
+  validateTransactionInput(input);
+
+  const transactions =
+    await getFinancialTransactions();
+
+  const existingTransaction =
+    transactions.find(
+      (transaction) =>
+        transaction.id === transactionId,
+    );
+
+  if (!existingTransaction) {
+    throw new Error(
+      "Lançamento financeiro não encontrado.",
+    );
+  }
+
+  const paymentData = resolvePaymentData(
+    input.status,
+    input.paymentMethod,
+    existingTransaction.paymentDate,
+  );
+
+  const updatedTransaction: FinancialTransaction = {
+    ...existingTransaction,
+    patientId: input.patientId,
+    patientName: input.patientName.trim(),
+    description: input.description.trim(),
+    procedure: input.procedure.trim(),
+    amount: input.amount,
+    dueDate: input.dueDate,
+    paymentDate: paymentData.paymentDate,
+    paymentMethod: paymentData.paymentMethod,
+    status: input.status,
+    notes: input.notes?.trim() || undefined,
+    updatedAt: new Date().toISOString(),
+  };
+
+  saveTransactions(
+    transactions.map((transaction) =>
+      transaction.id === transactionId
+        ? updatedTransaction
+        : transaction,
+    ),
+  );
+
+  return updatedTransaction;
 }
 
 export async function updateFinancialTransactionStatus(
@@ -226,39 +329,29 @@ export async function updateFinancialTransactionStatus(
     );
   }
 
-  let paymentMethod: PaymentMethod =
+  const paymentData = resolvePaymentData(
+    input.status,
     input.paymentMethod ??
-    transaction.paymentMethod;
-
-  let paymentDate = transaction.paymentDate;
-
-  if (input.status === "Pago") {
-    paymentDate =
-      transaction.paymentDate ??
-      new Date().toISOString().slice(0, 10);
-
-    if (paymentMethod === "Não definido") {
-      paymentMethod = "PIX";
-    }
-  } else {
-    paymentDate = undefined;
-  }
+      transaction.paymentMethod,
+    transaction.paymentDate,
+  );
 
   const updatedTransaction: FinancialTransaction = {
     ...transaction,
     status: input.status,
-    paymentMethod,
-    paymentDate,
+    paymentMethod:
+      paymentData.paymentMethod,
+    paymentDate: paymentData.paymentDate,
+    updatedAt: new Date().toISOString(),
   };
 
-  const updatedTransactions = transactions.map(
-    (item) =>
+  saveTransactions(
+    transactions.map((item) =>
       item.id === transactionId
         ? updatedTransaction
         : item,
+    ),
   );
-
-  saveTransactions(updatedTransactions);
 
   return updatedTransaction;
 }
@@ -275,10 +368,11 @@ export async function deleteFinancialTransaction(
   const transactions =
     await getFinancialTransactions();
 
-  const transactionExists = transactions.some(
-    (transaction) =>
-      transaction.id === transactionId,
-  );
+  const transactionExists =
+    transactions.some(
+      (transaction) =>
+        transaction.id === transactionId,
+    );
 
   if (!transactionExists) {
     throw new Error(
@@ -286,10 +380,10 @@ export async function deleteFinancialTransaction(
     );
   }
 
-  const updatedTransactions = transactions.filter(
-    (transaction) =>
-      transaction.id !== transactionId,
+  saveTransactions(
+    transactions.filter(
+      (transaction) =>
+        transaction.id !== transactionId,
+    ),
   );
-
-  saveTransactions(updatedTransactions);
 }

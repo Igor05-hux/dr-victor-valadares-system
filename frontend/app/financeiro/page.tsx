@@ -9,6 +9,7 @@ import {
   CreditCard,
   FileText,
   Filter,
+  Pencil,
   Plus,
   Search,
   Trash2,
@@ -34,6 +35,7 @@ import {
   createFinancialTransaction,
   deleteFinancialTransaction,
   getFinancialTransactions,
+  updateFinancialTransaction,
   updateFinancialTransactionStatus,
 } from "@/services/financial.service";
 import { getPatients } from "@/services/patient.service";
@@ -42,6 +44,7 @@ import type {
   FinancialTransaction,
   FinancialTransactionStatus,
   PaymentMethod,
+  UpdateFinancialTransactionInput,
 } from "@/types/financial";
 import type { Patient } from "@/types/patient";
 import { MonthlyRevenueChart } from "@/components/financial/monthly-revenue-chart";
@@ -151,6 +154,13 @@ export default function FinancialPage() {
 
   const [isFormOpen, setIsFormOpen] =
     useState(false);
+
+  const [
+    editingTransaction,
+    setEditingTransaction,
+  ] = useState<FinancialTransaction | null>(
+    null,
+  );
 
   const [isSaving, setIsSaving] =
     useState(false);
@@ -418,6 +428,7 @@ const delinquencyRate =
     : 0;
 
   function resetForm(): void {
+    setEditingTransaction(null);
     setPatientId("");
     setDescription("");
     setProcedure("");
@@ -427,6 +438,29 @@ const delinquencyRate =
     setStatus("Pendente");
     setNotes("");
     setFormError("");
+  }
+
+  function openCreateForm(): void {
+    resetForm();
+    setIsFormOpen(true);
+  }
+
+  function openEditForm(
+    transaction: FinancialTransaction,
+  ): void {
+    setEditingTransaction(transaction);
+    setPatientId(transaction.patientId);
+    setDescription(transaction.description);
+    setProcedure(transaction.procedure);
+    setAmount(String(transaction.amount));
+    setDueDate(transaction.dueDate);
+    setPaymentMethod(
+      transaction.paymentMethod,
+    );
+    setStatus(transaction.status);
+    setNotes(transaction.notes ?? "");
+    setFormError("");
+    setIsFormOpen(true);
   }
 
   function closeForm(): void {
@@ -439,78 +473,112 @@ const delinquencyRate =
   }
 
   async function handleSubmit(
-  event: FormEvent<HTMLFormElement>,
-): Promise<void> {
-  event.preventDefault();
+    event: FormEvent<HTMLFormElement>,
+  ): Promise<void> {
+    event.preventDefault();
 
-  try {
-    setIsSaving(true);
-    setFormError("");
+    try {
+      setIsSaving(true);
+      setFormError("");
 
-    const patient = patients.find(
-      (item) => item.id === patientId,
-    );
-
-    if (!patient) {
-      throw new Error(
-        "Selecione um paciente.",
+      const patient = patients.find(
+        (item) => item.id === patientId,
       );
+
+      if (!patient) {
+        throw new Error(
+          "Selecione um paciente.",
+        );
+      }
+
+      const numericAmount = Number(
+        amount.replace(",", "."),
+      );
+
+      const input: UpdateFinancialTransactionInput =
+        {
+          patientId: patient.id,
+          patientName: patient.name,
+          description,
+          procedure,
+          amount: numericAmount,
+          dueDate,
+          paymentMethod,
+          status,
+          notes,
+        };
+
+      if (editingTransaction) {
+        const updatedTransaction =
+          await updateFinancialTransaction(
+            editingTransaction.id,
+            input,
+          );
+
+        setTransactions(
+          (currentTransactions) =>
+            currentTransactions.map(
+              (transaction) =>
+                transaction.id ===
+                updatedTransaction.id
+                  ? updatedTransaction
+                  : transaction,
+            ),
+        );
+
+        toast.success(
+          "Lançamento atualizado com sucesso.",
+          {
+            description: `${patient.name} — ${formatCurrency(
+              numericAmount,
+            )}`,
+          },
+        );
+      } else {
+        const newTransaction =
+          await createFinancialTransaction(input);
+
+        setTransactions(
+          (currentTransactions) => [
+            newTransaction,
+            ...currentTransactions,
+          ],
+        );
+
+        toast.success(
+          "Lançamento criado com sucesso.",
+          {
+            description: `${patient.name} — ${formatCurrency(
+              numericAmount,
+            )}`,
+          },
+        );
+      }
+
+      setIsFormOpen(false);
+      resetForm();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : editingTransaction
+            ? "Não foi possível atualizar o lançamento."
+            : "Não foi possível salvar o lançamento.";
+
+      setFormError(message);
+
+      toast.error(
+        editingTransaction
+          ? "Não foi possível atualizar o lançamento."
+          : "Não foi possível salvar o lançamento.",
+        {
+          description: message,
+        },
+      );
+    } finally {
+      setIsSaving(false);
     }
-
-    const numericAmount = Number(
-      amount.replace(",", "."),
-    );
-
-    const input: CreateFinancialTransactionInput =
-      {
-        patientId: patient.id,
-        patientName: patient.name,
-        description,
-        procedure,
-        amount: numericAmount,
-        dueDate,
-        paymentMethod,
-        status,
-        notes,
-      };
-
-    const newTransaction =
-      await createFinancialTransaction(input);
-
-    setTransactions((currentTransactions) => [
-      newTransaction,
-      ...currentTransactions,
-    ]);
-
-    setIsFormOpen(false);
-    resetForm();
-
-    toast.success(
-      "Lançamento criado com sucesso.",
-      {
-        description: `${patient.name} — ${formatCurrency(
-          numericAmount,
-        )}`,
-      },
-    );
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Não foi possível salvar o lançamento.";
-
-    setFormError(message);
-
-    toast.error(
-      "Não foi possível salvar o lançamento.",
-      {
-        description: message,
-      },
-    );
-  } finally {
-    setIsSaving(false);
   }
-}
 
   async function handleStatusChange(
   transaction: FinancialTransaction,
@@ -641,10 +709,7 @@ async function confirmDelete(): Promise<void> {
 
         <button
           type="button"
-          onClick={() => {
-            resetForm();
-            setIsFormOpen(true);
-          }}
+          onClick={openCreateForm}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700"
         >
           <Plus size={18} />
@@ -1118,18 +1183,40 @@ async function confirmDelete(): Promise<void> {
                         </td>
 
                         <td className="px-5 py-4">
-                          <div className="flex justify-end">
-                          <button
-  type="button"
-  disabled={isDeleting}
-  onClick={() =>
-    requestDelete(transaction)
-  }
-  title="Excluir lançamento"
-  className="flex h-9 w-9 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950"
->
-  <Trash2 size={17} />
-</button>
+                          <div className="flex justify-end gap-1">
+                            <button
+                              type="button"
+                              disabled={
+                                isDeleting ||
+                                isSaving
+                              }
+                              onClick={() =>
+                                openEditForm(
+                                  transaction,
+                                )
+                              }
+                              title="Editar lançamento"
+                              className="flex h-9 w-9 items-center justify-center rounded-lg text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-blue-950"
+                            >
+                              <Pencil size={17} />
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                isDeleting ||
+                                isSaving
+                              }
+                              onClick={() =>
+                                requestDelete(
+                                  transaction,
+                                )
+                              }
+                              title="Excluir lançamento"
+                              className="flex h-9 w-9 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950"
+                            >
+                              <Trash2 size={17} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1155,11 +1242,15 @@ async function confirmDelete(): Promise<void> {
             <header className="sticky top-0 flex items-center justify-between border-b bg-background px-6 py-5">
               <div>
                 <h2 className="text-xl font-bold">
-                  Novo lançamento
+                  {editingTransaction
+                    ? "Editar lançamento"
+                    : "Novo lançamento"}
                 </h2>
 
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Registre uma cobrança ou pagamento.
+                  {editingTransaction
+                    ? "Atualize os dados do lançamento financeiro."
+                    : "Registre uma cobrança ou pagamento."}
                 </p>
               </div>
 
@@ -1286,7 +1377,9 @@ async function confirmDelete(): Promise<void> {
               <div className="grid gap-5 sm:grid-cols-2">
                 <label className="block">
                   <span className="mb-2 block text-sm font-medium">
-                    Status inicial
+                    {editingTransaction
+                      ? "Status"
+                      : "Status inicial"}
                   </span>
 
                   <select
@@ -1373,8 +1466,12 @@ async function confirmDelete(): Promise<void> {
                   className="h-11 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSaving
-                    ? "Salvando..."
-                    : "Salvar lançamento"}
+                    ? editingTransaction
+                      ? "Atualizando..."
+                      : "Salvando..."
+                    : editingTransaction
+                      ? "Salvar alterações"
+                      : "Salvar lançamento"}
                 </button>
               </footer>
             </form>

@@ -25,6 +25,7 @@ export interface FinancialTransaction {
   status: FinancialTransactionStatus;
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CreateFinancialTransactionInput {
@@ -38,6 +39,9 @@ export interface CreateFinancialTransactionInput {
   status: FinancialTransactionStatus;
   notes?: string;
 }
+
+export type UpdateFinancialTransactionInput =
+  CreateFinancialTransactionInput;
 
 export interface UpdateFinancialTransactionStatusInput {
   status: FinancialTransactionStatus;
