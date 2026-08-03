@@ -1,4 +1,5 @@
 import { prosthesisGraftTemplates } from "@/data/prosthesis-graft-templates";
+import { specialDocumentTemplates } from "@/data/special-document-templates";
 import type { DocumentTemplate } from "@/types/document-template";
 
 const baseDocumentTemplates: DocumentTemplate[] = [
@@ -146,5 +147,5 @@ CRO: {{professional.cro}}`,
 export const defaultDocumentTemplates: DocumentTemplate[] = [
   ...baseDocumentTemplates,
   ...prosthesisGraftTemplates,
+  ...specialDocumentTemplates,
 ];
-

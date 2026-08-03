@@ -7,8 +7,14 @@ export interface Patient {
   phone: string;
   birthDate: string;
   cpf?: string;
+  rg?: string;
   address?: string;
   notes?: string;
+
+  guardianName?: string;
+  guardianCpf?: string;
+  guardianRg?: string;
+
   lastAppointment: string;
   nextAppointment?: string;
   status: PatientStatus;
