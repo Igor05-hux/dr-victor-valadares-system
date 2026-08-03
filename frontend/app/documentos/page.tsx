@@ -4,6 +4,7 @@ import {
   Download,
   ExternalLink,
   FileImage,
+  FilePenLine,
   FileText,
   Files,
   FolderOpen,
@@ -12,7 +13,12 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { toast } from "sonner";
 
 import {
   getAllMedicalDocuments,
@@ -160,6 +166,18 @@ export default function DocumentsPage() {
 
         setDocuments(storedDocuments);
         setPatients(storedPatients);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar os documentos.";
+
+        toast.error(
+          "Erro ao carregar os documentos.",
+          {
+            description: message,
+          },
+        );
       } finally {
         setIsLoading(false);
       }
@@ -187,7 +205,9 @@ export default function DocumentsPage() {
 
   const filteredDocuments = useMemo(() => {
     const normalizedSearch =
-      searchTerm.trim().toLowerCase();
+      searchTerm
+        .trim()
+        .toLocaleLowerCase("pt-BR");
 
     return documentsWithPatients.filter(
       (document) => {
@@ -206,7 +226,7 @@ export default function DocumentsPage() {
           ),
         ]
           .join(" ")
-          .toLowerCase();
+          .toLocaleLowerCase("pt-BR");
 
         const matchesSearch =
           normalizedSearch.length === 0 ||
@@ -244,9 +264,14 @@ export default function DocumentsPage() {
       );
 
       if (!previewWindow) {
-        window.alert(
-          "O navegador bloqueou a abertura. Permita pop-ups para este site.",
+        toast.error(
+          "O navegador bloqueou a abertura.",
+          {
+            description:
+              "Permita pop-ups para este site e tente novamente.",
+          },
         );
+
         return;
       }
 
@@ -254,7 +279,9 @@ export default function DocumentsPage() {
         createDocumentUrl(document);
 
       const isImage =
-        document.mimeType.startsWith("image/");
+        document.mimeType.startsWith(
+          "image/",
+        );
 
       const safeName = escapeHtml(
         document.name,
@@ -395,9 +422,15 @@ export default function DocumentsPage() {
           );
         },
       );
-    } catch {
-      window.alert(
+    } catch (error) {
+      toast.error(
         "Não foi possível abrir o documento.",
+        {
+          description:
+            error instanceof Error
+              ? error.message
+              : undefined,
+        },
       );
     }
   }
@@ -423,9 +456,22 @@ export default function DocumentsPage() {
       window.setTimeout(() => {
         URL.revokeObjectURL(documentUrl);
       }, 1_000);
-    } catch {
-      window.alert(
+
+      toast.success(
+        "Download iniciado.",
+        {
+          description: document.fileName,
+        },
+      );
+    } catch (error) {
+      toast.error(
         "Não foi possível baixar o documento.",
+        {
+          description:
+            error instanceof Error
+              ? error.message
+              : undefined,
+        },
       );
     }
   }
@@ -448,9 +494,9 @@ export default function DocumentsPage() {
 
   return (
     <main className="space-y-6 p-6">
-      <header>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
             <FolderOpen size={24} />
           </div>
 
@@ -465,6 +511,14 @@ export default function DocumentsPage() {
             </p>
           </div>
         </div>
+
+        <Link
+          href="/documentos/modelos"
+          className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+        >
+          <FilePenLine size={18} />
+          Gerenciar modelos
+        </Link>
       </header>
 
       <section className="grid gap-4 md:grid-cols-3">
@@ -480,7 +534,7 @@ export default function DocumentsPage() {
               </strong>
             </div>
 
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
               <Files size={22} />
             </div>
           </div>
@@ -498,7 +552,7 @@ export default function DocumentsPage() {
               </strong>
             </div>
 
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
               <FileImage size={22} />
             </div>
           </div>
@@ -516,7 +570,7 @@ export default function DocumentsPage() {
               </strong>
             </div>
 
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-100 text-red-700">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
               <FileText size={22} />
             </div>
           </div>
@@ -640,8 +694,8 @@ export default function DocumentsPage() {
                       <div
                         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                           isImage
-                            ? "bg-blue-100 text-blue-700"
-                            : "bg-red-100 text-red-700"
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                            : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
                         }`}
                       >
                         {isImage ? (
@@ -667,7 +721,7 @@ export default function DocumentsPage() {
                     </div>
 
                     <div className="mt-4">
-                      <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                      <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                         {getDocumentTypeLabel(
                           document.type,
                         )}
