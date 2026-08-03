@@ -44,6 +44,7 @@ import type {
   PaymentMethod,
 } from "@/types/financial";
 import type { Patient } from "@/types/patient";
+import { MonthlyRevenueChart } from "@/components/financial/monthly-revenue-chart";
 
 type StatusFilter =
   | "Todos"
@@ -139,6 +140,12 @@ export default function FinancialPage() {
   const [statusFilter, setStatusFilter] =
     useState<StatusFilter>("Todos");
 
+  const [startDateFilter, setStartDateFilter] =
+    useState("");
+
+  const [endDateFilter, setEndDateFilter] =
+    useState("");
+
   const [isLoading, setIsLoading] =
     useState(true);
 
@@ -149,14 +156,14 @@ export default function FinancialPage() {
     useState(false);
 
   const [
-  transactionToDelete,
-  setTransactionToDelete,
-] = useState<FinancialTransaction | null>(
-  null,
-);
+    transactionToDelete,
+    setTransactionToDelete,
+  ] = useState<FinancialTransaction | null>(
+    null,
+  );
 
-const [isDeleting, setIsDeleting] =
-  useState(false);
+  const [isDeleting, setIsDeleting] =
+    useState(false);
 
   const [formError, setFormError] =
     useState("");
@@ -221,8 +228,9 @@ const [isDeleting, setIsDeleting] =
 }, []);
 
   const filteredTransactions = useMemo(() => {
-    const normalizedSearch =
-      searchTerm.trim().toLowerCase();
+    const normalizedSearch = searchTerm
+      .trim()
+      .toLocaleLowerCase("pt-BR");
 
     return transactions.filter((transaction) => {
       const matchesStatus =
@@ -238,7 +246,7 @@ const [isDeleting, setIsDeleting] =
         transaction.notes ?? "",
       ]
         .join(" ")
-        .toLowerCase();
+        .toLocaleLowerCase("pt-BR");
 
       const matchesSearch =
         normalizedSearch.length === 0 ||
@@ -246,12 +254,37 @@ const [isDeleting, setIsDeleting] =
           normalizedSearch,
         );
 
-      return matchesStatus && matchesSearch;
+      const transactionDueDate = new Date(
+        `${transaction.dueDate}T12:00:00`,
+      );
+
+      const matchesStartDate =
+        !startDateFilter ||
+        transactionDueDate.getTime() >=
+          new Date(
+            `${startDateFilter}T00:00:00`,
+          ).getTime();
+
+      const matchesEndDate =
+        !endDateFilter ||
+        transactionDueDate.getTime() <=
+          new Date(
+            `${endDateFilter}T23:59:59`,
+          ).getTime();
+
+      return (
+        matchesStatus &&
+        matchesSearch &&
+        matchesStartDate &&
+        matchesEndDate
+      );
     });
   }, [
     transactions,
     searchTerm,
     statusFilter,
+    startDateFilter,
+    endDateFilter,
   ]);
 
   const paidTotal = useMemo(
@@ -301,6 +334,88 @@ const [isDeleting, setIsDeleting] =
 
   const expectedTotal =
     paidTotal + pendingTotal + overdueTotal;
+
+    const monthlyChartData = useMemo(() => {
+  const currentDate = new Date();
+
+  return Array.from(
+    { length: 6 },
+    (_, index) => {
+      const date = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() - (5 - index),
+        1,
+      );
+
+      const year = date.getFullYear();
+      const month = date.getMonth();
+
+      const monthTransactions =
+        transactions.filter((transaction) => {
+          const transactionDate = new Date(
+            `${transaction.dueDate}T12:00:00`,
+          );
+
+          return (
+            transactionDate.getFullYear() === year &&
+            transactionDate.getMonth() === month
+          );
+        });
+
+      return {
+        month: new Intl.DateTimeFormat(
+          "pt-BR",
+          {
+            month: "short",
+          },
+        )
+          .format(date)
+          .replace(".", ""),
+
+        received: monthTransactions
+          .filter(
+            (transaction) =>
+              transaction.status === "Pago",
+          )
+          .reduce(
+            (total, transaction) =>
+              total + transaction.amount,
+            0,
+          ),
+
+        pending: monthTransactions
+          .filter(
+            (transaction) =>
+              transaction.status === "Pendente",
+          )
+          .reduce(
+            (total, transaction) =>
+              total + transaction.amount,
+            0,
+          ),
+
+        overdue: monthTransactions
+          .filter(
+            (transaction) =>
+              transaction.status === "Vencido",
+          )
+          .reduce(
+            (total, transaction) =>
+              total + transaction.amount,
+            0,
+          ),
+      };
+    },
+  );
+}, [transactions]);
+
+const receivableTotal =
+  pendingTotal + overdueTotal;
+
+const delinquencyRate =
+  receivableTotal > 0
+    ? (overdueTotal / receivableTotal) * 100
+    : 0;
 
   function resetForm(): void {
     setPatientId("");
@@ -627,8 +742,73 @@ async function confirmDelete(): Promise<void> {
         </article>
       </section>
 
+      <section className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_0.6fr]">
+        <MonthlyRevenueChart
+          data={monthlyChartData}
+        />
+
+        <article className="rounded-2xl border bg-card p-6 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                Taxa de inadimplência
+              </p>
+
+              <strong className="mt-3 block text-4xl">
+                {delinquencyRate.toFixed(1)}%
+              </strong>
+            </div>
+
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
+              <TriangleAlert size={22} />
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <div className="h-3 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-red-500 transition-all"
+                style={{
+                  width: `${Math.min(
+                    delinquencyRate,
+                    100,
+                  )}%`,
+                }}
+              />
+            </div>
+
+            <p className="mt-3 text-sm text-muted-foreground">
+              Percentual vencido sobre o total ainda
+              disponível para recebimento.
+            </p>
+          </div>
+
+          <div className="mt-6 space-y-3 border-t pt-5 text-sm">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">
+                Total a receber
+              </span>
+
+              <strong>
+                {formatCurrency(receivableTotal)}
+              </strong>
+            </div>
+
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">
+                Total vencido
+              </span>
+
+              <strong className="text-red-600">
+                {formatCurrency(overdueTotal)}
+              </strong>
+            </div>
+          </div>
+        </article>
+      </section>
+
       <section className="mt-6 rounded-2xl border bg-card p-5 shadow-sm">
-        <div className="grid gap-4 lg:grid-cols-[1fr_230px]">
+        <div className="grid gap-4 lg:grid-cols-[1fr_210px_180px_180px]">
           <label className="relative block">
             <Search
               size={18}
@@ -677,6 +857,42 @@ async function confirmDelete(): Promise<void> {
               )}
             </select>
           </label>
+
+          <label className="block">
+            <span className="sr-only">
+              Data inicial
+            </span>
+
+            <input
+              type="date"
+              value={startDateFilter}
+              onChange={(event) =>
+                setStartDateFilter(
+                  event.target.value,
+                )
+              }
+              title="Data inicial"
+              className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+
+          <label className="block">
+            <span className="sr-only">
+              Data final
+            </span>
+
+            <input
+              type="date"
+              value={endDateFilter}
+              onChange={(event) =>
+                setEndDateFilter(
+                  event.target.value,
+                )
+              }
+              title="Data final"
+              className="h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
         </div>
 
         <p className="mt-4 text-sm text-muted-foreground">
@@ -685,6 +901,24 @@ async function confirmDelete(): Promise<void> {
             ? "lançamento encontrado"
             : "lançamentos encontrados"}
         </p>
+
+        {(searchTerm ||
+          statusFilter !== "Todos" ||
+          startDateFilter ||
+          endDateFilter) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm("");
+              setStatusFilter("Todos");
+              setStartDateFilter("");
+              setEndDateFilter("");
+            }}
+            className="mt-3 text-sm font-medium text-blue-600 hover:underline"
+          >
+            Limpar filtros
+          </button>
+        )}
       </section>
 
       <section className="mt-6 overflow-hidden rounded-2xl border bg-card shadow-sm">
