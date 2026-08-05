@@ -1,7 +1,14 @@
-br\com\victorvaladares\clinic\patient\PatientController.class
+br\com\victorvaladares\clinic\appointment\AppointmentStatus.class
+br\com\victorvaladares\clinic\appointment\AppointmentRequest.class
 br\com\victorvaladares\clinic\patient\PatientResponse.class
 br\com\victorvaladares\clinic\ClinicApiApplication.class
-br\com\victorvaladares\clinic\patient\PatientRepository.class
 br\com\victorvaladares\clinic\patient\Patient.class
-br\com\victorvaladares\clinic\patient\PatientService.class
+br\com\victorvaladares\clinic\appointment\AppointmentResponse.class
 br\com\victorvaladares\clinic\patient\PatientRequest.class
+br\com\victorvaladares\clinic\appointment\AppointmentService.class
+br\com\victorvaladares\clinic\patient\PatientController.class
+br\com\victorvaladares\clinic\patient\PatientRepository.class
+br\com\victorvaladares\clinic\patient\PatientService.class
+br\com\victorvaladares\clinic\appointment\AppointmentController.class
+br\com\victorvaladares\clinic\appointment\Appointment.class
+br\com\victorvaladares\clinic\appointment\AppointmentRepository.class
