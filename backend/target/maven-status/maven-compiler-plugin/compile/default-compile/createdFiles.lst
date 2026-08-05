@@ -1,0 +1,7 @@
+br\com\victorvaladares\clinic\patient\PatientController.class
+br\com\victorvaladares\clinic\patient\PatientResponse.class
+br\com\victorvaladares\clinic\ClinicApiApplication.class
+br\com\victorvaladares\clinic\patient\PatientRepository.class
+br\com\victorvaladares\clinic\patient\Patient.class
+br\com\victorvaladares\clinic\patient\PatientService.class
+br\com\victorvaladares\clinic\patient\PatientRequest.class
